@@ -36,6 +36,7 @@ import { execSetPowerLevelCommand } from "./SetPowerLevelCommand";
 import { execShutdownRoomCommand } from "./ShutdownRoomCommand";
 import { execAddAliasCommand, execMoveAliasCommand, execRemoveAliasCommand, execResolveCommand } from "./AliasCommands";
 import { execKickCommand } from "./KickCommand";
+import { execMassKickCommand } from "./MassKickCommand";
 import { execMakeRoomAdminCommand } from "./MakeRoomAdminCommand";
 
 export const COMMAND_PREFIX = "!mjolnir";
@@ -101,6 +102,8 @@ export async function handleCommand(roomId: string, event: any, mjolnir: Mjolnir
             return await execShutdownRoomCommand(roomId, event, mjolnir, parts);
         } else if (parts[1] === 'kick' && parts.length > 2) {
             return await execKickCommand(roomId, event, mjolnir, parts);
+        } else if (parts[1] === 'mass' && parts[2] === 'kick' && parts.length > 3) {
+            return await execMassKickCommand(roomId, event, mjolnir, parts);
         } else if (parts[1] === 'make' && parts[2] === 'admin' && parts.length > 3) {
             return await execMakeRoomAdminCommand(roomId, event, mjolnir, parts);
         } else {

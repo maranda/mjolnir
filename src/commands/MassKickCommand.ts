@@ -19,9 +19,9 @@ import { LogLevel } from "matrix-bot-sdk";
 import config from "../config";
 import { logMessage } from "../LogProxy";
 
-// !mjolnir mass kick <user> [room] [reason]
+// !mjolnir mass kick <pattern> [room] [reason]
 export async function execMassKickCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
-    const pattern = parts[3];
+    const pattern = new RegExp(parts[3]);
 
     let rooms = [...Object.keys(mjolnir.protectedRooms)];
     let reason;
