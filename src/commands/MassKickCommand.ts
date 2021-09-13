@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { Mjolnir } from "../Mjolnir";
-import { LogLevel, RichReply } from "matrix-bot-sdk";
+import { extractRequestError, LogLevel, RichReply } from "matrix-bot-sdk";
 import config from "../config";
 import { logMessage } from "../LogProxy";
 
@@ -44,9 +44,10 @@ export async function execMassKickCommand(roomId: string, event: any, mjolnir: M
                 await logMessage(LogLevel.INFO, "MassKickCommand", `Kicking ${user} in ${targetRoomId} for ${reason}`);
                 try {
                     await mjolnir.client.kickUser(user, targetRoomId, reason);
-                } catch (err) {
-                    await logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${err}`);
-                    const text = `Failed to kick ${user}: ${err}`;
+                } catch (e) {
+                    const error = extractRequestError(e);
+                    await logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${error}`);
+                    const text = `Failed to kick ${user}: ${error}`;
                     const reply = RichReply.createFor(roomId, event, text, text);
                     reply["msgtype"] = "m.notice";
                     await mjolnir.client.sendMessage(roomId, reply);
