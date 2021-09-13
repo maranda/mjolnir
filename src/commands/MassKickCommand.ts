@@ -41,18 +41,18 @@ export async function execMassKickCommand(roomId: string, event: any, mjolnir: M
 
         for (const user of filteredUsers) {
             if (!config.noop) {
-                await logMessage(LogLevel.INFO, "MassKickCommand", `Kicking ${user} in ${targetRoomId} for ${reason}`, targetRoomId);
+                await logMessage(LogLevel.INFO, "MassKickCommand", `Kicking ${user} in ${targetRoomId} for ${reason}`);
                 try {
                     await mjolnir.client.kickUser(user, targetRoomId, reason);
                 } catch (err) {
-                    await logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${err}`, targetRoomId);
+                    await logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${err}`);
                     const text = `Failed to kick ${user}: ${err}`;
                     const reply = RichReply.createFor(roomId, event, text, text);
                     reply["msgtype"] = "m.notice";
                     await mjolnir.client.sendMessage(roomId, reply);
                 }
             } else {
-                await logMessage(LogLevel.WARN, "MassKickCommand", `Tried to kick ${user} in ${targetRoomId} but the bot is running in no-op mode.`, targetRoomId);
+                await logMessage(LogLevel.WARN, "MassKickCommand", `Tried to kick ${user} in ${targetRoomId} but the bot is running in no-op mode.`);
             }
         }
     }
