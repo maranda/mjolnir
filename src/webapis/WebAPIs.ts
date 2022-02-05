@@ -17,10 +17,11 @@ limitations under the License.
 import { Server } from "http";
 
 import * as express from "express";
-import { JSDOM } from 'jsdom';
-import { MatrixClient } from "matrix-bot-sdk";
+import { LogService, MatrixClient } from "matrix-bot-sdk";
 
 import config from "../config";
+import RuleServer from "../models/RuleServer";
+import { ReportManager } from "../report/ReportManager";
 
 
 /**
@@ -34,7 +35,7 @@ export class WebAPIs {
     private webController: express.Express = express();
     private httpServer?: Server;
 
-    constructor(private client: MatrixClient) {
+    constructor(private reportManager: ReportManager, private readonly ruleServer: RuleServer|null) {
         // Setup JSON parsing.
         this.webController.use(express.json());
     }
@@ -56,6 +57,22 @@ export class WebAPIs {
                 await this.handleReport({ request, response, roomId: request.params.room_id, eventId: request.params.event_id })
             });
             console.log(`Configuring ${API_PREFIX}/report/:room_id/:event_id... DONE`);
+        }
+
+        // Configure ruleServer API.
+        // FIXME: Doesn't this need some kind of access control?
+        // See https://github.com/matrix-org/mjolnir/issues/139#issuecomment-1012221479.
+        if (config.web.ruleServer?.enabled) {
+            const updatesUrl = `${API_PREFIX}/ruleserver/updates`;
+            LogService.info("WebAPIs", `Configuring ${updatesUrl}...`);
+            if (!this.ruleServer) {
+                throw new Error("The rule server to use has not been configured for the WebAPIs.");
+            }
+            const ruleServer: RuleServer = this.ruleServer;
+            this.webController.get(updatesUrl, async (request, response) => {
+                await this.handleRuleServerUpdate(ruleServer, { request, response, since: request.query.since as string});
+            });
+            LogService.info("WebAPIs", `Configuring ${updatesUrl}... DONE`);
         }
     }
 
@@ -153,91 +170,27 @@ export class WebAPIs {
                 // with all Matrix homeservers, rather than just Synapse.
                 event = await reporterClient.getEvent(roomId, eventId);
             }
-            let accusedId: string = event["sender"];
-
-            /*
-            Past this point, the following invariants hold:
-
-            - The reporter is a member of `roomId`.
-            - Event `eventId` did take place in room `roomId`.
-            - The reporter could witness event `eventId` in room `roomId`.
-            - Event `eventId` was reported by user `accusedId`.
-            */
-
-            let { displayname: reporterDisplayName }: { displayname: string } = await this.client.getUserProfile(reporterId);
-            let { displayname: accusedDisplayName }: { displayname: string } = await this.client.getUserProfile(accusedId);
-            let roomAliasOrID = roomId;
-            try {
-                roomAliasOrID = await this.client.getPublishedAlias(roomId);
-            } catch (ex) {
-                // Ignore.
-            }
-            let eventShortcut = `https://matrix.to/#/${encodeURIComponent(roomId)}/${encodeURIComponent(eventId)}`;
-            let roomShortcut = `https://matrix.to/#/${encodeURIComponent(roomAliasOrID)}`;
-            let eventContent;
-            if (event["type"] === "m.room.encrypted") {
-                eventContent = "<encrypted content>";
-            } else {
-                eventContent = JSON.stringify(event["content"], null, 2);
-            }
 
             let reason = request.body["reason"];
-
-            // We now have all the information we need to produce an abuse report.
-
-            // We need to send the report as html to be able to use spoiler markings.
-            // We build this as dom to be absolutely certain that we're not introducing
-            // any kind of injection within the report.
-            const document = new JSDOM(
-                "<body>" +
-                "User <code id='reporter-display-name'></code> (<code id='reporter-id'></code>) " +
-                "reported <a id='event-shortcut'>event <span id='event-id'></span></a> " +
-                "sent by user <b><span id='accused-display-name'></span> (<span id='accused-id'></span>)</b> " +
-                "in <a id='room-shortcut'>room <span id='room-alias-or-id'></span></a>." +
-                "<div>Event content <span id='event-container'><code id='event-content'></code><span></div>" +
-                "<div>Reporter commented: <code id='reason-content'></code></div>" +
-                "</body>")
-                .window
-                .document;
-            // ...insert text content
-            for (let [key, value] of [
-                ['reporter-display-name', reporterDisplayName],
-                ['reporter-id', reporterId],
-                ['accused-display-name', accusedDisplayName],
-                ['accused-id', accusedId],
-                ['event-id', eventId],
-                ['room-alias-or-id', roomAliasOrID],
-                ['event-content', eventContent],
-                ['reason-content', reason || "<no reason given>"]
-            ]) {
-                document.getElementById(key)!.textContent = value;
-            }
-            // ...insert attributes
-            for (let [key, value] of [
-                ['event-shortcut', eventShortcut],
-                ['room-shortcut', roomShortcut],
-            ]) {
-                (document.getElementById(key)! as HTMLAnchorElement).href = value;
-            }
-            // ...set presentation
-            if (event["type"] !== "m.room.encrypted") {
-                // If there's some event content, mark it as a spoiler.
-                document.getElementById('event-container')!.
-                    setAttribute("data-mx-spoiler", "");
-            }
-
-            // Possible evolutions: in future versions, we could add the ability to one-click discard, kick, ban.
-
-            // Send the report and we're done!
-            // We MUST send this report with the regular Mjölnir client.
-            await this.client.sendHtmlNotice(config.managementRoom, document.body.outerHTML);
-
-            console.debug("Formatted abuse report sent");
+            await this.reportManager.handleServerAbuseReport({ roomId, eventId, reporterId, event, reason });
 
             // Match the spec behavior of `/report`: return 200 and an empty JSON.
             response.status(200).json({});
         } catch (ex) {
             console.warn("Error responding to an abuse report", roomId, eventId, ex);
+            response.status(503);
+        }
+    }
+
+    async handleRuleServerUpdate(ruleServer: RuleServer, { since, request, response }: { since: string, request: express.Request, response: express.Response }) {
+        // FIXME Have to do this because express sends keep alive by default and during tests.
+        // The server will never be able to close because express never closes the sockets, only stops accepting new connections.
+        // See https://github.com/matrix-org/mjolnir/issues/139#issuecomment-1012221479.
+        response.set("Connection", "close");
+        try {
+            response.json(ruleServer.getUpdates(since)).status(200);
+        } catch (ex) {
+            LogService.error("WebAPIs", `Error responding to a rule server updates request`, since, ex);
         }
     }
 }
