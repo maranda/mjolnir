@@ -28,13 +28,23 @@ describe("Test: The make admin command", function () {
         LogService.debug("makeadminTest", `Adding targetRoom: ${targetRoom}`);
         await tester.joinRoom(targetRoom);
         LogService.debug("makeadminTest", `tester joining targetRoom: ${targetRoom}`);
-        await getFirstReaction(moderator, this.mjolnir.managementRoomId, "\u2705", async () => {
-            return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir make admin ${targetRoom}` });
-        });        
+        try {
+            await moderator.start();
+            await getFirstReaction(moderator, this.mjolnir.managementRoomId, "\u2705", async () => {
+                return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir make admin ${targetRoom}` });
+            });
+        } finally {
+            moderator.stop();
+        }
         LogService.debug("makeadminTest", `Making self admin`);
-        await getFirstReaction(moderator, this.mjolnir.managementRoomId, "\u2705", async () => {
-            return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
-        });
+        try {
+            await moderator.start();
+            await getFirstReaction(moderator, this.mjolnir.managementRoomId, "\u2705", async () => {
+                return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
+            });
+        } finally {
+            moderator.stop();
+        }
         LogService.debug("makeadminTest", `Making tester admin`);
 
         assert.ok(await mjolnir.userHasPowerLevelForAction(mjolnirUserId, targetRoom, PowerLevelAction.Ban), "Bot user is now room admin.");
