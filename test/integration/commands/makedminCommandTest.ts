@@ -11,7 +11,7 @@ describe("Test: The make admin command", function () {
     afterEach(function () { this.moderator ?.stop(); });
 
     it('Mjölnir make the bot self room administrator and some other tester too', async function () {
-        this.timeout(60000);
+        this.timeout(120000);
         const mjolnir = config.RUNTIME.client!
         let mjolnirUserId = await mjolnir.getUserId();
         let moderator = await newTestUser({ name: { contains: "moderator" } });
@@ -28,11 +28,11 @@ describe("Test: The make admin command", function () {
         LogService.debug("makeadminTest", `Adding targetRoom: ${targetRoom}`);
         await tester.joinRoom(targetRoom);
         LogService.debug("makeadminTest", `tester joining targetRoom: ${targetRoom}`);
-        await getFirstReaction(moderator, this.mjolnir.managementRoomId, '✅', async () => {
+        await getFirstReaction(moderator, this.mjolnir.managementRoomId, "\u2705", async () => {
             return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir make admin ${targetRoom}` });
         });        
         LogService.debug("makeadminTest", `Making self admin`);
-        await getFirstReaction(moderator, this.mjolnir.managementRoomId, '✅', async () => {
+        await getFirstReaction(moderator, this.mjolnir.managementRoomId, "\u2705", async () => {
             return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
         });
         LogService.debug("makeadminTest", `Making tester admin`);
