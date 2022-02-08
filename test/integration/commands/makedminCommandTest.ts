@@ -36,7 +36,7 @@ describe("Test: The make admin command", function () {
         let botIsAdmin = await mjolnir.userHasPowerLevelForAction(mjolnirUserId, targetRoom, PowerLevelAction.Ban);
         let testerIsAdmin = await mjolnir.userHasPowerLevelForAction(testerUserId, targetRoom, PowerLevelAction.Ban);
 
-        assert.ok(botIsAdmin, true, "Bot user is now room admin.");
-        assert.ok(testerIsAdmin, true, "Tester user is now room admin.");
+        assert.equal(botIsAdmin, true, "Bot user is now room admin.");
+        assert.equal(testerIsAdmin, true, "Tester user is now room admin.");
     });
 });
