@@ -33,10 +33,7 @@ describe("Test: The make admin command", function () {
         await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
         LogService.debug("makeadminTest", `Making tester admin`);
 
-        let botIsAdmin = await mjolnir.userHasPowerLevelForAction(mjolnirUserId, targetRoom, PowerLevelAction.Ban);
-        let testerIsAdmin = await mjolnir.userHasPowerLevelForAction(testerUserId, targetRoom, PowerLevelAction.Ban);
-
-        assert.ok(botIsAdmin, true, "Bot user is now room admin.");
-        assert.ok(testerIsAdmin, true, "Tester user is now room admin.");
+        setTimeout(assert.ok(await tester.userHasPowerLevelForAction(mjolnirUserId, targetRoom, PowerLevelAction.Ban), "Bot user is now room admin."), 30000);
+        setTimeout(assert.ok(await mjolnir.userHasPowerLevelForAction(testerUserId, targetRoom, PowerLevelAction.Ban), "Tester user is now room admin."), 60000);
     });
 });
