@@ -3,7 +3,7 @@
 import config from "../../../src/config";
 import { newTestUser } from "../clientHelper";
 import { PowerLevelAction } from "matrix-bot-sdk/lib/models/PowerLevelAction";
-import { getFirstReaction } from "./commandUtils";
+import { LogService } from "matrix-bot-sdk";
 
 describe("Test: The make admin command", function () {
     // If a test has a timeout while awaitng on a promise then we never get given control back.
@@ -18,11 +18,17 @@ describe("Test: The make admin command", function () {
         let testerUserId = await tester.getUserId();
         this.moderator = moderator;
         this.tester = tester;
+
         await moderator.joinRoom(config.managementRoom);
+        LogService.debug("makeadminTest", `Joining managementRoom: ${config.managementRoom}`);
         let targetRoom = await moderator.createRoom({ invite: [mjolnirUserId, testerUserId] });
+        LogService.debug("makeadminTest", `moderator creating targetRoom: ${targetRoom}; and inviting mjolnir and tester`);
         await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir rooms add ${targetRoom}` });
+        LogService.debug("makeadminTest", `Adding targetRoom: ${targetRoom}`);
         await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom}` });
-        await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${tester.getUserId()}` });
+        LogService.debug("makeadminTest", `Making self admin`);
+        await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
+        LogService.debug("makeadminTest", `Making tester admin`);
 
         assert.ok(await mjolnir.userHasPowerLevelForAction(mjolnirUserId, targetRoom, PowerLevelAction.Ban), "Bot user is now room admin.");
         assert.ok(await mjolnir.userHasPowerLevelForAction(testerUserId, targetRoom, PowerLevelAction.Ban), "Tester user is now room admin.");
