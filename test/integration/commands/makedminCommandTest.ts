@@ -4,6 +4,7 @@ import config from "../../../src/config";
 import { newTestUser } from "../clientHelper";
 import { PowerLevelAction } from "matrix-bot-sdk/lib/models/PowerLevelAction";
 import { LogService } from "matrix-bot-sdk";
+import { getFirstReaction } from "./commandUtils";
 
 describe("Test: The make admin command", function () {
     // If a test has a timeout while awaitng on a promise then we never get given control back.
@@ -25,9 +26,15 @@ describe("Test: The make admin command", function () {
         LogService.debug("makeadminTest", `moderator creating targetRoom: ${targetRoom}; and inviting mjolnir and tester`);
         await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir rooms add ${targetRoom}` });
         LogService.debug("makeadminTest", `Adding targetRoom: ${targetRoom}`);
-        await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom}` });
+        await tester.joinRoom(targetRoom);
+        LogService.debug("makeadminTest", `tester joining targetRoom: ${targetRoom}`);
+        await getFirstReaction(moderator, this.mjolnir.managementRoomId, '✅', async () => {
+            return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir make admin ${targetRoom}` });
+        });        
         LogService.debug("makeadminTest", `Making self admin`);
-        await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
+        await getFirstReaction(moderator, this.mjolnir.managementRoomId, '✅', async () => {
+            return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testerUserId}` });
+        });
         LogService.debug("makeadminTest", `Making tester admin`);
 
         assert.ok(await mjolnir.userHasPowerLevelForAction(mjolnirUserId, targetRoom, PowerLevelAction.Ban), "Bot user is now room admin.");
