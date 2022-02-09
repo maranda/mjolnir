@@ -57,7 +57,7 @@ describe("Test: The make admin command", function () {
         try {
             await moderator.start();
             await testUser.start()
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+            await getFirstReaction(moderator, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testUserId}` });
             });
         } finally {
