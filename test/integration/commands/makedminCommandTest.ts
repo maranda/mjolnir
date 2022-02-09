@@ -7,13 +7,9 @@ import { LogService } from "matrix-bot-sdk";
 import { getFirstReaction } from "./commandUtils";
 
 describe("Test: The make admin command", function () {
-    this.beforeEach(async function () {
-        this.timeout(1000);
-        const mjolnir = config.RUNTIME.client!;
-    });
-    this.afterEach(async function () {
-        this.timeout(1000);
-        const mjolnir = config.RUNTIME.client!;
+    afterEach(function () {
+        this.moderator?.stop();
+        this.testUser?.stop();
     });
 
     it('Mjölnir make the bot self room administrator', async function () {
@@ -21,6 +17,7 @@ describe("Test: The make admin command", function () {
         const mjolnir = config.RUNTIME.client!;
         const mjolnirUserId = await mjolnir.getUserId();
         const moderator = await newTestUser({ name: { contains: "moderator" } });
+        this.moderator = moderator;
 
         await moderator.joinRoom(config.managementRoom);
         LogService.debug("makeadminTest", `Joining managementRoom: ${config.managementRoom}`);
@@ -56,9 +53,9 @@ describe("Test: The make admin command", function () {
         LogService.debug("makeadminTest", `tester joining targetRoom: ${targetRoom}`);
         try {
             await moderator.start();
-            await testUser.start()
-            await getFirstReaction(moderator, this.mjolnir.managementRoomId, '✅', async () => {
-                return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${testUserId}` });
+            await testUser.start();
+            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+                return await mjolnir.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom}` });
             });
         } finally {
             await moderator.stop();
