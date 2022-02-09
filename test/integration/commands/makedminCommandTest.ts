@@ -28,8 +28,8 @@ describe("Test: The make admin command", function () {
         LogService.debug("makeadminTest", `Adding targetRoom: ${targetRoom}`);
         try {
             await moderator.start();
-            await getFirstReaction(mjolnir, mjolnir.managementRoomId, '✅', async () => {
-                return await moderator.sendMessage(mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir make admin ${targetRoom}` });
+            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+                return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir make admin ${targetRoom}` });
             });
         } finally {
             await moderator.stop();
@@ -62,8 +62,8 @@ describe("Test: The make admin command", function () {
         }
         try {
             await moderator.start();
-            await getFirstReaction(mjolnir, mjolnir.managementRoomId, '✅', async () => {
-                return await moderator.sendMessage(mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${userBId}` });
+            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+                return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${userBId}` });
             });
         } finally {
             await moderator.stop();
