@@ -54,14 +54,15 @@ describe("Test: The make admin command", function () {
         let targetRoom = await userA.createRoom({ invite: [userBId] });
         LogService.debug("makeadminTest", `User A creating targetRoom: ${targetRoom}; and inviting ${userBId}`);
         try {
-            await userB.start()
+            await userB.start();
             userB.joinRoom(targetRoom);
         } finally {
             LogService.debug("makeadminTest", `${userBId} joining targetRoom: ${targetRoom}`);
-            await userB.stop()
+            await userB.stop();
         }
         try {
             await moderator.start();
+            await mjolnir.start();
             await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
                 LogService.debug("makeadminTest", `Sending: !mjolnir make admin ${targetRoom} ${userBId}`);
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${userBId}` });
