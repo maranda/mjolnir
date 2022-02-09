@@ -44,6 +44,8 @@ describe("Test: The make admin command", function () {
         const moderator = await newTestUser({ name: { contains: "moderator" } });
         const testUser = await newTestUser({ name: { contains: "tester" } });
         const testUserId = await testUser.getUserId();
+        this.moderator = moderator;
+        this.testUser = testUser;
 
         await moderator.joinRoom(config.managementRoom);
         LogService.debug("makeadminTest", `Joining managementRoom: ${config.managementRoom}`);
