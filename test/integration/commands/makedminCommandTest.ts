@@ -50,10 +50,10 @@ describe("Test: The make admin command", function () {
         this.userA = userA;
         this.userB = userB;
 
-        await mjolnir.joinRoom(config.managementRoom);
-        await mjolnir.inviteUser(await moderator.getUserId(), config.managementRoom);
-        await moderator.joinRoom(config.managementRoom);
-        LogService.debug("makeadminTest", `Joining managementRoom: ${config.managementRoom}`);
+        await mjolnir.joinRoom(this.mjolnir.managementRoomId);
+        await mjolnir.inviteUser(await moderator.getUserId(), this.mjolnir.managementRoomId);
+        await moderator.joinRoom(this.mjolnir.managementRoomId);
+        LogService.debug("makeadminTest", `Joining managementRoom: ${this.mjolnir.managementRoomId}`);
         let targetRoom = await userA.createRoom({ invite: [userBId] });
         LogService.debug("makeadminTest", `User A creating targetRoom: ${targetRoom}; and inviting ${userBId}`);
         try {
