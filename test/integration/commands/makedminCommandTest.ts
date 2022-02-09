@@ -41,6 +41,7 @@ describe("Test: The make admin command", function () {
     it('Mjölnir make the tester room administrator', async function () {
         this.timeout(60000);
         const mjolnir = config.RUNTIME.client!;
+        const mjolnirUserId = await mjolnir.getUserId();
         const moderator = await newTestUser({ name: { contains: "moderator" } });
         const userA = await newTestUser({ name: { contains: "a" } });
         const userB = await newTestUser({ name: { contains: "b" } });
@@ -49,6 +50,8 @@ describe("Test: The make admin command", function () {
         this.userA = userA;
         this.userB = userB;
 
+        await mjolnir.joinRoom(config.managementRoom);
+        await mjolnir.inviteUser(await moderator.getUserId(), config.managementRoom);
         await moderator.joinRoom(config.managementRoom);
         LogService.debug("makeadminTest", `Joining managementRoom: ${config.managementRoom}`);
         let targetRoom = await userA.createRoom({ invite: [userBId] });
@@ -62,7 +65,6 @@ describe("Test: The make admin command", function () {
         }
         try {
             await moderator.start();
-            await mjolnir.start();
             await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
                 LogService.debug("makeadminTest", `Sending: !mjolnir make admin ${targetRoom} ${userBId}`);
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text.', body: `!mjolnir make admin ${targetRoom} ${userBId}` });
@@ -72,6 +74,9 @@ describe("Test: The make admin command", function () {
         }
         LogService.debug("makeadminTest", `Making User B admin`);
 
-        assert.ok(await userA.userHasPowerLevelForAction(userBId, targetRoom, PowerLevelAction.Ban), "User B is now room admin.");
+        await assert.ok(
+            await userA.userHasPowerLevelForAction(userBId, targetRoom, PowerLevelAction.Ban),
+            "User B is now room admin."
+        );
     });
 });
