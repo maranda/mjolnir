@@ -34,7 +34,7 @@ import { applyUserBans } from "./actions/ApplyBan";
 import config from "./config";
 import { logMessage } from "./LogProxy";
 import ErrorCache, { ERROR_KIND_FATAL, ERROR_KIND_PERMISSION } from "./ErrorCache";
-import { IProtection } from "./protections/IProtection";
+import { Protection } from "./protections/IProtection";
 import { PROTECTIONS } from "./protections/protections";
 import { ProtectionSettingValidationError } from "./protections/ProtectionSettings";
 import { UnlistedUserRedactionQueue } from "./queues/UnlistedUserRedactionQueue";
@@ -59,7 +59,7 @@ export class Mjolnir {
     private displayName: string;
     private localpart: string;
     private currentState: string = STATE_NOT_STARTED;
-    public protections = new Map<string /* protection name */, IProtection>();
+    public protections = new Map<string /* protection name */, Protection>();
     /**
      * This is for users who are not listed on a watchlist,
      * but have been flagged by the automatic spam detection as suispicous
@@ -238,7 +238,7 @@ export class Mjolnir {
         return this.currentState;
     }
 
-    public get enabledProtections(): IProtection[] {
+    public get enabledProtections(): Protection[] {
         return [...this.protections.values()].filter(p => p.enabled);
     }
 
@@ -426,7 +426,7 @@ export class Mjolnir {
     /*
      * Read org.matrix.mjolnir.setting state event, find any saved settings for
      * the requested protectionName, then iterate and validate against their parser
-     * counterparts in IProtection.settings and return those which validate
+     * counterparts in Protection.settings and return those which validate
      *
      * @param protectionName The name of the protection whose settings we're reading
      * @returns Every saved setting for this protectionName that has a valid value
@@ -505,7 +505,7 @@ export class Mjolnir {
      *
      * @param protection The protection object we want to register
      */
-    public async registerProtection(protection: IProtection) {
+    public async registerProtection(protection: Protection) {
         this.protections.set(protection.name, protection)
 
         let enabledProtections: { enabled: string[] } | null = null;
@@ -533,6 +533,10 @@ export class Mjolnir {
             throw new Error("Failed to find protection by name: " + protectionName);
         }
         this.protections.delete(protectionName);
+    }
+
+    public getProtection(protectionName: string): Protection | null {
+        return this.protections.get(protectionName) ?? null;
     }
 
     public async watchList(roomRef: string): Promise<BanList | null> {
