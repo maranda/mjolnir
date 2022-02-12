@@ -119,16 +119,19 @@ export class WebAPIs {
             {
                 // -- Create a client on behalf of the reporter.
                 // We'll use it to confirm the authenticity of the report.
-                let accessToken;
+                let accessToken: string | undefined = undefined;
 
                 // Authentication mechanism 1: Request header.
                 let authorization = request.get('Authorization');
 
                 if (authorization) {
                     [, accessToken] = AUTHORIZATION.exec(authorization)!;
-                } else {
+                } else if (typeof(request.query["access_token"]) === 'string') {
                     // Authentication mechanism 2: Access token as query parameter.
                     accessToken = request.query["access_token"];
+                } else {
+                    response.status(401).send("Missing access token");
+                    return;
                 }
 
                 // Create a client dedicated to this report.
@@ -184,7 +187,7 @@ export class WebAPIs {
             }
 
             let reason = request.body["reason"];
-            await this.reportManager.handleServerAbuseReport({ roomId, eventId, reporterId, event, reason });
+            await this.reportManager.handleServerAbuseReport({ roomId, reporterId, event, reason });
 
             // Match the spec behavior of `/report`: return 200 and an empty JSON.
             response.status(200).json({});

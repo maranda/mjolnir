@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { IProtection } from "./IProtection";
+import { Protection } from "./IProtection";
 import { NumberProtectionSetting } from "./ProtectionSettings";
 import { Mjolnir } from "../Mjolnir";
 import { LogLevel, LogService } from "matrix-bot-sdk";
@@ -25,20 +25,21 @@ import config from "../config";
 export const DEFAULT_MAX_PER_MINUTE = 10;
 const TIMESTAMP_THRESHOLD = 30000; // 30s out of phase
 
-export class BasicFlooding implements IProtection {
+export class BasicFlooding extends Protection {
 
     private lastEvents: { [roomId: string]: { [userId: string]: { originServerTs: number, eventId: string }[] } } = {};
     private recentlyBanned: string[] = [];
 
-    maxPerMinute = new NumberProtectionSetting(DEFAULT_MAX_PER_MINUTE);
-    settings = {};
-
-    constructor() {
-        this.settings['maxPerMinute'] = this.maxPerMinute;
-    }
+    settings = {
+        maxPerMinute: new NumberProtectionSetting(DEFAULT_MAX_PER_MINUTE)
+    };
 
     public get name(): string {
         return 'BasicFloodingProtection';
+    }
+    public get description(): string {
+        return "If a user posts more than " + DEFAULT_MAX_PER_MINUTE + " messages in 60s they'll be " +
+            "banned for spam. This does not publish the ban to any of your ban lists.";
     }
 
     public async handleEvent(mjolnir: Mjolnir, roomId: string, event: any): Promise<any> {
@@ -62,7 +63,7 @@ export class BasicFlooding implements IProtection {
             messageCount++;
         }
 
-        if (messageCount >= this.maxPerMinute.value) {
+        if (messageCount >= this.settings.maxPerMinute.value) {
             await logMessage(LogLevel.WARN, "BasicFlooding", `Banning ${event['sender']} in ${roomId} for flooding (${messageCount} messages in the last minute)`, roomId);
             if (!config.noop) {
                 await mjolnir.client.banUser(event['sender'], roomId, "spam");
@@ -88,8 +89,8 @@ export class BasicFlooding implements IProtection {
         }
 
         // Trim the oldest messages off the user's history if it's getting large
-        if (forUser.length > this.maxPerMinute.value * 2) {
-            forUser.splice(0, forUser.length - (this.maxPerMinute.value * 2) - 1);
+        if (forUser.length > this.settings.maxPerMinute.value * 2) {
+            forUser.splice(0, forUser.length - (this.settings.maxPerMinute.value * 2) - 1);
         }
     }
 }

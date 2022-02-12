@@ -16,6 +16,10 @@ limitations under the License.
 
 export class ProtectionSettingValidationError extends Error {};
 
+/*
+ * @param TChange Type for individual pieces of data (e.g. `string`)
+ * @param TValue Type for overall value of this setting (e.g. `string[]`)
+ */
 export class AbstractProtectionSetting<TChange, TValue> {
     // the current value of this setting
     value: TValue
@@ -76,20 +80,25 @@ export function isListSetting(object: any): object is AbstractProtectionListSett
 
 export class StringProtectionSetting extends AbstractProtectionSetting<string, string> {
     value = "";
-    fromString = (data) => data;
-    validate = (data) => true;
+    fromString = (data: string): string => data;
+    validate = (data: string): boolean => true;
 }
 export class StringListProtectionSetting extends AbstractProtectionListSetting<string, string[]> {
     value: string[] = [];
-    fromString = (data) => data;
-    validate = (data) => true;
+    fromString = (data: string): string => data;
+    validate = (data: string): boolean => true;
     addValue(data: string): string[] {
         return [...this.value, data];
     }
     removeValue(data: string): string[] {
-        const index = this.value.indexOf(data);
-        return this.value.splice(index, index + 1);
+        return this.value.filter(i => i !== data);
     }
+}
+
+// A list of strings that match the glob pattern @*:*
+export class MXIDListProtectionSetting extends StringListProtectionSetting {
+    // validate an individual piece of data for this setting - namely a single mxid
+    validate = (data: string) => /^@\S+:\S+$/.test(data);
 }
 
 export class NumberProtectionSetting extends AbstractProtectionSetting<number, number> {
@@ -107,11 +116,11 @@ export class NumberProtectionSetting extends AbstractProtectionSetting<number, n
         this.max = max;
     }
 
-    fromString(data) {
+    fromString(data: string) {
         let number = Number(data);
         return isNaN(number) ? undefined : number;
     }
-    validate(data) {
+    validate(data: number) {
         return (!isNaN(data)
             && (this.min === undefined || this.min <= data)
             && (this.max === undefined || data <= this.max))

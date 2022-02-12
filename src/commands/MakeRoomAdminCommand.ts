@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Marco Cirillo
+Copyright 2021, 2022 Marco Cirillo
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import config from "../config";
 import { Mjolnir } from "../Mjolnir";
 import { RichReply } from "matrix-bot-sdk";
 
 // !mjolnir make admin <room> [<user ID>]
 export async function execMakeRoomAdminCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
     const isAdmin = await mjolnir.isSynapseAdmin();
-    if (!isAdmin) {
-        const message = "I am not a Synapse administrator, or the endpoint is blocked";
+    if (!config.admin?.enableMakeRoomAdminCommand || !isAdmin) {
+        const message = "Either the command is disabled or I am not running as homeserver administrator.";
         const reply = RichReply.createFor(roomId, event, message, message);
         reply['msgtype'] = "m.notice";
         mjolnir.client.sendMessage(roomId, reply);
         return;
     }
 
-    await mjolnir.makeUserRoomAdmin(await mjolnir.client.resolveRoom(parts[3]), parts[4]);
-    await mjolnir.client.unstableApis.addReactionToEvent(roomId, event['event_id'], '✅');
+    let err = await mjolnir.makeUserRoomAdmin(await mjolnir.client.resolveRoom(parts[3]), parts[4]);
+    if (err instanceof Error || typeof (err) === "string") {
+        const errMsg = "Failed to process command:";
+        const message = typeof (err) === "string" ? `${errMsg}: ${err}` : `${errMsg}: ${err.message}`;
+        const reply = RichReply.createFor(roomId, event, message, message);
+        reply['msgtype'] = "m.notice";
+        mjolnir.client.sendMessage(roomId, reply);
+        return;
+    } else {
+        await mjolnir.client.unstableApis.addReactionToEvent(roomId, event['event_id'], '✅');
+    }
 }

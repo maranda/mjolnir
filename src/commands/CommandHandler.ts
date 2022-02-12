@@ -19,7 +19,7 @@ import { execStatusCommand } from "./StatusCommand";
 import { execBanCommand, execUnbanCommand } from "./UnbanBanCommand";
 import { execDumpRulesCommand } from "./DumpRulesCommand";
 import { extractRequestError, LogService, RichReply } from "matrix-bot-sdk";
-import * as htmlEscape from "escape-html";
+import { htmlEscape } from "../utils";
 import { execSyncCommand } from "./SyncCommand";
 import { execPermissionCheckCommand } from "./PermissionCheckCommand";
 import { execCreateListCommand } from "./CreateBanListCommand";
@@ -42,7 +42,7 @@ import { execMakeRoomAdminCommand } from "./MakeRoomAdminCommand";
 
 export const COMMAND_PREFIX = "!mjolnir";
 
-export async function handleCommand(roomId: string, event: any, mjolnir: Mjolnir) {
+export async function handleCommand(roomId: string, event: { content: { body: string } }, mjolnir: Mjolnir) {
     const cmd = event['content']['body'];
     const parts = cmd.trim().split(' ').filter(p => p.trim().length > 0);
 
@@ -153,7 +153,7 @@ export async function handleCommand(roomId: string, event: any, mjolnir: Mjolnir
                 "!mjolnir resolve <room alias>                                       - Resolves a room alias to a room ID\n" +
                 "!mjolnir shutdown room <room alias/ID> [message]                    - Uses the bot's account to shut down a room, preventing access to the room on this server\n" +
                 "!mjolnir powerlevel <user ID> <power level> [room alias/ID]         - Sets the power level of the user in the specified room (or all protected rooms)\n" +
-                "!mjolnir make admin <room alias> [room alias/ID]                    - Make the specified user or the bot itself admin of the room\n" +
+                "!mjolnir make admin <room alias> [user alias/ID]                    - Make the specified user or the bot itself admin of the room\n" +
                 "!mjolnir help                                                       - This menu\n";
             const html = `<b>Mjolnir help:</b><br><pre><code>${htmlEscape(menu)}</code></pre>`;
             const text = `Mjolnir help:\n${menu}`;
