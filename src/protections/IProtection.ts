@@ -39,7 +39,7 @@ export abstract class Protection {
     }
 
     /*
-     * Handle a single reported event from a protected room, to decide if we
+     * Handle a single reported event from a protecte room, to decide if we
      * need to respond to it
      */
     handleReport(mjolnir: Mjolnir, roomId: string, reporterId: string, event: any, reason?: string): Promise<any> {
@@ -49,7 +49,7 @@ export abstract class Protection {
     /**
      * Return status information for `!mjolnir status ${protectionName}`.
      */
-    async statusCommand(mjolnir: Mjolnir, subcommand: string[]): Promise<string | null> {
+    async statusCommand(mjolnir: Mjolnir, subcommand: string[]): Promise<{html: string, text: string} | null> {
         // By default, protections don't have any status to show.
         return null;
     }

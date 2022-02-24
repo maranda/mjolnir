@@ -20,13 +20,15 @@ import { htmlEscape } from "../utils";
 
 // !mjolnir
 export async function execStatusCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
-    switch (parts[1]) {
+    switch (parts[0]) {
         case undefined:
         case 'mjolnir':
             return showMjolnirStatus(roomId, event, mjolnir);
         case 'protection':
-            return showProtectionStatus(roomId, event, mjolnir, parts.slice(2));
-    }
+            return showProtectionStatus(roomId, event, mjolnir, parts.slice(/* ["protection"] */ 1));
+        default:
+            throw new Error(`Invalid status command: ${htmlEscape(parts[0])}`);
+        }
 }
 
 async function showMjolnirStatus(roomId: string, event: any, mjolnir: Mjolnir) {
@@ -82,22 +84,23 @@ async function showMjolnirStatus(roomId: string, event: any, mjolnir: Mjolnir) {
 }
 
 async function showProtectionStatus(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
-    let protectionName = parts[0];
-    let protection = mjolnir.getProtection(protectionName);
-    let textReply;
-    let htmlReply
+    const protectionName = parts[0];
+    const protection = mjolnir.getProtection(protectionName);
+    let text;
+    let html;
     if (!protection) {
-        textReply = htmlReply = "Unknown protection";
+        text = html = "Unknown protection";
     } else {
-        let status = await protection.statusCommand(mjolnir, parts.slice(1));
+        const status = await protection.statusCommand(mjolnir, parts.slice(1));
         if (status) {
-            htmlReply = status;
-            textReply = htmlEscape(htmlReply);
+            text = status.text;
+            html = status.html;
         } else {
-            htmlReply = textReply = "<no status>";
+            text = "<no status>";
+            html = "&lt;no status&gt;";
         }
     }
-    const reply = RichReply.createFor(roomId, event, textReply, htmlReply);
+    const reply = RichReply.createFor(roomId, event, text, html);
     reply["msgtype"] = "m.notice";
     await mjolnir.client.sendMessage(roomId, reply);
 }
