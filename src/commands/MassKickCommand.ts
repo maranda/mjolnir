@@ -45,7 +45,7 @@ export async function execMassKickCommand(roomId: string, event: any, mjolnir: M
                     await mjolnir.client.kickUser(user, targetRoomId, reason);
                 } catch (e) {
                     const error = extractRequestError(e);
-                    await logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${error}`);
+                    await mjolnir.logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${error}`);
                     const text = `Failed to kick ${user}: ${error}`;
                     const reply = RichReply.createFor(roomId, event, text, text);
                     reply["msgtype"] = "m.notice";
