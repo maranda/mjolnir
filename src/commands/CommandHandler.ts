@@ -41,7 +41,6 @@ import { execMassKickCommand } from "./MassKickCommand";
 import { execMakeRoomAdminCommand } from "./MakeRoomAdminCommand";
 
 
-
 export const COMMAND_PREFIX = "!mjolnir";
 
 export async function handleCommand(roomId: string, event: { content: { body: string } }, mjolnir: Mjolnir) {
