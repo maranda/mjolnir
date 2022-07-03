@@ -134,7 +134,7 @@ export async function handleCommand(roomId: string, event: { content: { body: st
                 "!mjolnir unban <list shortcode> <user|room|server> <glob> [apply]   - Removes an entity from the ban list. If apply is 'true', the users matching the glob will actually be unbanned\n" +
                 "!mjolnir redact <user ID> [room alias/ID] [limit]                   - Redacts messages by the sender in the target room (or all rooms), up to a maximum number of events in the backlog (default 1000)\n" +
                 "!mjolnir redact <event permalink>                                   - Redacts a message by permalink\n" +
-                "!mjolnir kick <user ID> [room alias/ID] [reason]                    - Kicks a user in a particular room or all protected rooms\n" +
+                "!mjolnir kick <glob> [room alias/ID] [reason]                       - Kicks a user or all of those matching a glob in a particular room or all protected rooms\n" +
                 "!mjolnir mass kick <regex> [room alias/ID] [reason]                 - Kicks users based on a regex in a particular room or all protected rooms\n" +
                 "!mjolnir rules                                                      - Lists the rules currently in use by Mjolnir\n" +
                 "!mjolnir sync                                                       - Force updates of all lists and re-apply rules\n" +
@@ -161,7 +161,7 @@ export async function handleCommand(roomId: string, event: { content: { body: st
                 "!mjolnir alias add <room alias> <target room alias/ID>              - Adds <room alias> to <target room>\n" +
                 "!mjolnir alias remove <room alias>                                  - Deletes the room alias from whatever room it is attached to\n" +
                 "!mjolnir resolve <room alias>                                       - Resolves a room alias to a room ID\n" +
-                "!mjolnir since <date>/<duration> <action> <limit> [rooms...] [reason] - Apply an action (kick, ban or just show) to all users who joined a room since a given date (up to <limit> users)\n" +
+                "!mjolnir since <date>/<duration> <action> <limit> [rooms...] [reason] - Apply an action ('kick', 'ban', 'mute', 'unmute' or 'show') to all users who joined a room since <date>/<duration> (up to <limit> users)\n" +
                 "!mjolnir shutdown room <room alias/ID> [message]                    - Uses the bot's account to shut down a room, preventing access to the room on this server\n" +
                 "!mjolnir powerlevel <user ID> <power level> [room alias/ID]         - Sets the power level of the user in the specified room (or all protected rooms)\n" +
                 "!mjolnir make admin <room alias> [user alias/ID]                    - Make the specified user or the bot itself admin of the room\n" +
