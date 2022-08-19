@@ -1190,7 +1190,7 @@ export class Mjolnir {
 
     private async handleReport({ roomId, reporterId, event, reason }: { roomId: string, reporterId: string, event: any, reason?: string }) {
         for (const protection of this.enabledProtections) {
-            await protection.handleReport(this, e.roomId, e.reporterId, e.event, e.reason);
+            await protection.handleReport(this, roomId, reporterId, event, reason);
         }
     }
 }
