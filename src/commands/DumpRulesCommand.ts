@@ -71,12 +71,20 @@ export async function execRulesMatchingCommand(roomId: string, event: any, mjoln
     return mjolnir.client.sendMessage(roomId, reply);
 }
 
+function sendReply(roomId: string, event: any, html: string, text: string, mjolnir: Mjolnir) {
+    const reply = RichReply.createFor(roomId, event, text, html);
+    reply["msgtype"] = "m.notice";
+    return mjolnir.client.sendMessage(roomId, reply);
+}
+
 // !mjolnir rules
 export async function execDumpRulesCommand(roomId: string, event: any, mjolnir: Mjolnir) {
     let html = "<b>Rules currently in use:</b><br/>";
     let text = "Rules currently in use:\n";
 
     let hasLists = false;
+    let i = 0;
+
     for (const list of mjolnir.lists) {
         hasLists = true;
         let hasRules = false;
@@ -87,21 +95,48 @@ export async function execDumpRulesCommand(roomId: string, event: any, mjolnir: 
         text += `${list.roomRef}${shortcodeInfo}:\n`;
 
         for (const rule of list.serverRules) {
+            if (i >= 30) {
+                html += "</ul>";
+                text += "\n";
+                sendReply(roomId, event, html, text, mjolnir);
+                html = `<a href="${list.roomRef}">${list.roomId}</a> Continuing ${shortcodeInfo}:<br/><ul>`;
+                text = `${list.roomRef}${shortcodeInfo}:\n`;
+                i = 0;
+            }
             hasRules = true;
             html += `<li>server (<code>${rule.recommendation}</code>): <code>${htmlEscape(rule.entity)}</code> (${htmlEscape(rule.reason)})</li>`;
             text += `* server (${rule.recommendation}): ${rule.entity} (${rule.reason})\n`;
+            i++;
         }
 
         for (const rule of list.userRules) {
+            if (i >= 30) {
+                html += "</ul>";
+                text += "\n";
+                sendReply(roomId, event, html, text, mjolnir);
+                html = `<a href="${list.roomRef}">${list.roomId}</a> Continuing ${shortcodeInfo}:<br/><ul>`;
+                text = `${list.roomRef}${shortcodeInfo}:\n`;
+                i = 0;
+            }
             hasRules = true;
             html += `<li>user (<code>${rule.recommendation}</code>): <code>${htmlEscape(rule.entity)}</code> (${htmlEscape(rule.reason)})</li>`;
             text += `* user (${rule.recommendation}): ${rule.entity} (${rule.reason})\n`;
+            i++;
         }
 
         for (const rule of list.roomRules) {
+            if (i >= 30) {
+                html += "</ul>";
+                text += "\n";
+                sendReply(roomId, event, html, text, mjolnir);
+                html = `<a href="${list.roomRef}">${list.roomId}</a> Continuing ${shortcodeInfo}:<br/><ul>`;
+                text = `${list.roomRef}${shortcodeInfo}:\n`;
+                i = 0;
+            }
             hasRules = true;
             html += `<li>room (<code>${rule.recommendation}</code>): <code>${htmlEscape(rule.entity)}</code> (${htmlEscape(rule.reason)})</li>`;
             text += `* room (${rule.recommendation}): ${rule.entity} (${rule.reason})\n`;
+            i++;
         }
 
         if (!hasRules) {
@@ -118,7 +153,5 @@ export async function execDumpRulesCommand(roomId: string, event: any, mjolnir: 
         text = "No ban lists configured";
     }
 
-    const reply = RichReply.createFor(roomId, event, text, html);
-    reply["msgtype"] = "m.notice";
-    return mjolnir.client.sendMessage(roomId, reply);
+    return sendReply(roomId, event, html, text, mjolnir);
 }
