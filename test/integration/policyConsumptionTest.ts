@@ -1,18 +1,19 @@
 import { strict as assert } from "assert";
 
 import { newTestUser } from "./clientHelper";
-import config from "../../src/config";
-import { getRequestFn, LogService, MatrixClient } from "matrix-bot-sdk";
+import { Mjolnir } from "../../src/Mjolnir";
+import { read as configRead } from "../../src/config";
+import { getRequestFn, LogService } from "matrix-bot-sdk";
 import { createBanList, getFirstReaction } from "./commands/commandUtils";
 
 /**
  * Get a copy of the rules from the ruleserver.
  */
-async function currentRules(): Promise<{ start: object, stop: object, since: string }> {
+async function currentRules(mjolnir: Mjolnir): Promise<{ start: object, stop: object, since: string }> {
     return await new Promise((resolve, reject) => getRequestFn()({
-        uri: `http://${config.web.address}:${config.web.port}/api/1/ruleserver/updates/`,
-        method: "GET"
-    }, (error, response, body) => {
+            uri: `http://${mjolnir.config.web.address}:${mjolnir.config.web.port}/api/1/ruleserver/updates/`,
+            method: "GET"
+    }, (error: object, _response: any, body: string) => {
         if (error) {
             reject(error)
         } else {
@@ -25,8 +26,8 @@ async function currentRules(): Promise<{ start: object, stop: object, since: str
  * Wait for the rules to change as a result of the thunk. The returned promise will resolve when the rules being served have changed.
  * @param thunk Should cause the rules the RuleServer is serving to change some way.
  */
-async function waitForRuleChange(thunk): Promise<void> {
-    const initialRules = await currentRules();
+async function waitForRuleChange(mjolnir: Mjolnir, thunk: any): Promise<void> {
+    const initialRules = await currentRules(mjolnir);
     let rules = initialRules;
     // We use JSON.stringify like this so that it is pretty printed in the log and human readable.
     LogService.debug('policyConsumptionTest', `Rules before we wait for them to change: ${JSON.stringify(rules, null, 2)}`);
@@ -35,7 +36,7 @@ async function waitForRuleChange(thunk): Promise<void> {
         await new Promise<void>(resolve => {
             setTimeout(resolve, 500);
         })
-        rules = await currentRules();
+        rules = await currentRules(mjolnir);
     };
     // The problem is, we have no idea how long a consumer will take to process the changed rules.
     // We know the pull peroid is 1 second though.
@@ -47,45 +48,40 @@ async function waitForRuleChange(thunk): Promise<void> {
 
 describe("Test: that policy lists are consumed by the associated synapse module", function () {
     this.afterEach(async function () {
-        if(config.web.ruleServer.enabled) {
+        if (this.config.web.ruleServer.enabled) {
             this.timeout(5000)
-            LogService.debug('policyConsumptionTest', `Rules at end of test ${JSON.stringify(await currentRules(), null, 2)}`);
-            const mjolnir = config.RUNTIME.client!;
+            LogService.debug('policyConsumptionTest', `Rules at end of test ${JSON.stringify(await currentRules(this.mjolnir), null, 2)}`);
             // Clear any state associated with the account.
-            await mjolnir.setAccountData('org.matrix.mjolnir.watched_lists', {
+            await this.mjolnir.client.setAccountData('org.matrix.mjolnir.watched_lists', {
                 references: [],
             });
         }
     })
     this.beforeAll(async function() {
-        if (!config.web.ruleServer.enabled) {
+        let config = configRead();
+        if (!config?.web?.ruleServer?.enabled) {
             LogService.warn("policyConsumptionTest", "Skipping policy consumption test because the ruleServer is not enabled")
             this.skip();
         }
     })
-    this.beforeEach(async function () {
-        this.timeout(1000);
-        const mjolnir = config.RUNTIME.client!;
-    })
     it('blocks users in antispam when they are banned from sending messages and invites serverwide.', async function() {
         this.timeout(20000);
         // Create a few users and a room.
-        let badUser = await newTestUser({ name: { contains: "spammer" }});
+        let badUser = await newTestUser(this.config.homeserverUrl, { name: { contains: "spammer" }});
         let badUserId = await badUser.getUserId();
-        const mjolnir = config.RUNTIME.client!
-        let mjolnirUserId = await mjolnir.getUserId();
-        let moderator = await newTestUser({ name: { contains: "moderator" }});
+        let mjolnirUserId = await this.mjolnir.client.getUserId();
+        let moderator = await newTestUser(this.config.homeserverUrl, { name: { contains: "moderator" }});
         this.moderator = moderator;
         await moderator.joinRoom(this.mjolnir.managementRoomId);
         let unprotectedRoom = await badUser.createRoom({ invite: [await moderator.getUserId()]});
         // We do this so the moderator can send invites, no other reason.
         await badUser.setUserPowerLevel(await moderator.getUserId(), unprotectedRoom, 100);
         await moderator.joinRoom(unprotectedRoom);
-        const banList = await createBanList(this.mjolnir.managementRoomId, mjolnir, moderator);
+        const banList = await createBanList(this.mjolnir.managementRoomId, this.mjolnir.client, moderator);
         await badUser.sendMessage(unprotectedRoom, {msgtype: 'm.text', body: 'Something bad and mean'});
 
-        await waitForRuleChange(async () => {
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+        await waitForRuleChange(this.mjolnir, async () => {
+            await getFirstReaction(this.mjolnir.client, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir ban ${banList} ${badUserId}` });
             });
         });
@@ -95,8 +91,8 @@ describe("Test: that policy lists are consumed by the associated synapse module"
         assert.ok(await moderator.sendMessage(unprotectedRoom, { msgtype: 'm.text', body: 'test'}), 'They should be able to send messages still too.');
 
         // Test we can remove the rules.
-        await waitForRuleChange(async () => {
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+        await waitForRuleChange(this.mjolnir, async () => {
+            await getFirstReaction(this.mjolnir.client, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir unban ${banList} ${badUserId}` });
             });
         });
@@ -105,16 +101,15 @@ describe("Test: that policy lists are consumed by the associated synapse module"
     })
     it('Test: Cannot send message to a room that is listed in a policy list and cannot invite a user to the room either', async function () {
         this.timeout(20000);
-        let badUser = await newTestUser({ name: { contains: "spammer" }});
-        const mjolnir = config.RUNTIME.client!
-        let moderator = await newTestUser({ name: { contains: "moderator" }});
+        let badUser = await newTestUser(this.config.homeserverUrl, { name: { contains: "spammer" }});
+        let moderator = await newTestUser(this.config.homeserverUrl, { name: { contains: "moderator" }});
         await moderator.joinRoom(this.mjolnir.managementRoomId);
-        const banList = await createBanList(this.mjolnir.managementRoomId, mjolnir, moderator);
+        const banList = await createBanList(this.mjolnir.managementRoomId, this.mjolnir.client, moderator);
         let badRoom = await badUser.createRoom();
         let unrelatedRoom = await badUser.createRoom();
         await badUser.sendMessage(badRoom, {msgtype: 'm.text', body: "Very Bad Stuff in this room"});
-        await waitForRuleChange(async () => {
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+        await waitForRuleChange(this.mjolnir, async () => {
+            await getFirstReaction(this.mjolnir.client, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir ban ${banList} ${badRoom}` });
             });
         });
@@ -123,8 +118,8 @@ describe("Test: that policy lists are consumed by the associated synapse module"
         assert.ok(await badUser.sendMessage(unrelatedRoom, { msgtype: 'm.text.', body: 'hey'}), 'should be able to send messages to unrelated room');
         assert.ok(await badUser.inviteUser(await moderator.getUserId(), unrelatedRoom), 'They should still be able to invite to other rooms though');
         // Test we can remove these rules.
-        await waitForRuleChange(async () => {
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+        await waitForRuleChange(this.mjolnir, async () => {
+            await getFirstReaction(this.mjolnir.client, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir unban ${banList} ${badRoom}` });
             });
         });
@@ -134,21 +129,20 @@ describe("Test: that policy lists are consumed by the associated synapse module"
     })
     it('Test: When a list becomes unwatched, the associated policies are stopped.', async function () {
         this.timeout(20000);
-        const mjolnir = config.RUNTIME.client!
-        let moderator = await newTestUser({ name: { contains: "moderator" }});
+        let moderator = await newTestUser(this.config.homeserverUrl, { name: { contains: "moderator" }});
         await moderator.joinRoom(this.mjolnir.managementRoomId);
-        const banList = await createBanList(this.mjolnir.managementRoomId, mjolnir, moderator);
+        const banList = await createBanList(this.mjolnir.managementRoomId, this.mjolnir.client, moderator);
         let targetRoom = await moderator.createRoom();
         await moderator.sendMessage(targetRoom, {msgtype: 'm.text', body: "Fluffy Foxes."});
-        await waitForRuleChange(async () => {
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+        await waitForRuleChange(this.mjolnir, async () => {
+            await getFirstReaction(this.mjolnir.client, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir ban ${banList} ${targetRoom}` });
             });
         });
         await assert.rejects(moderator.sendMessage(targetRoom, { msgtype: 'm.text', body: 'test'}), 'should not be able to send messages to a room which is listed.');
 
-        await waitForRuleChange(async () => {
-            await getFirstReaction(mjolnir, this.mjolnir.managementRoomId, '✅', async () => {
+        await waitForRuleChange(this.mjolnir, async () => {
+            await getFirstReaction(this.mjolnir.client, this.mjolnir.managementRoomId, '✅', async () => {
                 return await moderator.sendMessage(this.mjolnir.managementRoomId, { msgtype: 'm.text', body: `!mjolnir unwatch #${banList}:localhost:9999` });
             });
         });

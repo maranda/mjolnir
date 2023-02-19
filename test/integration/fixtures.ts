@@ -1,5 +1,6 @@
-import config from "../../src/config";
+import { read as configRead } from "../../src/config";
 import { makeMjolnir, teardownManagementRoom } from "./mjolnirSetupUtils";
+import { register } from "prom-client";
 
 // When Mjolnir starts (src/index.ts) it clobbers the config by resolving the management room
 // alias specified in the config (config.managementRoom) and overwriting that with the room ID.
@@ -12,9 +13,10 @@ export const mochaHooks = {
             console.error("---- entering test", JSON.stringify(this.currentTest.title)); // Makes MatrixClient error logs a bit easier to parse.
             console.log("mochaHooks.beforeEach");
             // Sometimes it takes a little longer to register users.
-            this.timeout(10000)
+            this.timeout(30000);
+            const config = this.config = configRead();
             this.managementRoomAlias = config.managementRoom;
-            this.mjolnir = await makeMjolnir();
+            this.mjolnir = await makeMjolnir(config);
             config.RUNTIME.client = this.mjolnir.client;
             await Promise.all([
                 this.mjolnir.client.setAccountData('org.matrix.mjolnir.protected_rooms', { rooms: [] }),
@@ -33,7 +35,7 @@ export const mochaHooks = {
                 this.mjolnir.client.setAccountData('org.matrix.mjolnir.watched_lists', { references: [] }),
             ]);
             // remove alias from management room and leave it.
-            await teardownManagementRoom(this.mjolnir.client, this.mjolnir.managementRoomId, config.managementRoom);
+            await teardownManagementRoom(this.mjolnir.client, this.mjolnir.managementRoomId, this.managementRoomAlias);
             console.error("---- completed test", JSON.stringify(this.currentTest.title), "\n\n"); // Makes MatrixClient error logs a bit easier to parse.
         }
     ]

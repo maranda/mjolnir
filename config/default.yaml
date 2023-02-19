@@ -34,9 +34,9 @@ dataPath: "/data/storage"
 # If true (the default), Mjolnir will only accept invites from users present in managementRoom.
 autojoinOnlyIfManager: true
 
-# If `autojoinOnlyIfManager` is false, only the members in this group can invite
+# If `autojoinOnlyIfManager` is false, only the members in this space can invite
 # the bot to new rooms.
-acceptInvitesFromGroup: "+example:example.org"
+acceptInvitesFromSpace: "!example:example.org"
 
 # Whether Mjolnir should report ignored invites to the management room (if autojoinOnlyIfManager is true).
 recordIgnoredInvites: false
@@ -208,6 +208,20 @@ health:
     # The HTTP status code which reports that the bot is not healthy/ready.
     # Defaults to 418.
     unhealthyStatus: 418
+
+  # Sentry options. Sentry is a tool used to receive/collate/triage runtime
+  # errors and performance issues. Skip this section if you do not wish to use
+  # Sentry.
+  sentry:
+    # The key used to upload Sentry data to the server.
+    # dsn: "https://XXXXXXXXX@example.com/YYY
+
+    # Frequency of performance monitoring.
+    # A number in [0.0, 1.0], where 0.0 means "don't bother with tracing"
+    # and 1.0 means "trace performance at every opportunity".
+    # tracesSampleRate: 0.5
+
+
 
 # Options for exposing web APIs.
 web:

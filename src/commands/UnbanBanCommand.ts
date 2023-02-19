@@ -15,21 +15,20 @@ limitations under the License.
 */
 
 import { Mjolnir } from "../Mjolnir";
-import BanList, { RULE_ROOM, RULE_SERVER, RULE_USER, USER_RULE_TYPES } from "../models/BanList";
+import PolicyList from "../models/PolicyList";
 import { extractRequestError, LogLevel, LogService, MatrixGlob, RichReply } from "matrix-bot-sdk";
-import { RECOMMENDATION_BAN, recommendationToStable } from "../models/ListRule";
-import config from "../config";
+import { RULE_ROOM, RULE_SERVER, RULE_USER, USER_RULE_TYPES } from "../models/ListRule";
 import { DEFAULT_LIST_EVENT_TYPE } from "./SetDefaultBanListCommand";
 
 interface Arguments {
-    list: BanList | null;
+    list: PolicyList | null;
     entity: string;
     ruleType: string | null;
     reason: string;
 }
 
 // Exported for tests
-export async function parseArguments(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]): Promise<Arguments|null> {
+export async function parseArguments(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]): Promise<Arguments | null> {
     let defaultShortcode: string | null = null;
     try {
         const data: { shortcode: string } = await mjolnir.client.getAccountData(DEFAULT_LIST_EVENT_TYPE);
@@ -44,7 +43,7 @@ export async function parseArguments(roomId: string, event: any, mjolnir: Mjolni
     let argumentIndex = 2;
     let ruleType: string | null = null;
     let entity: string | null = null;
-    let list: BanList | null = null;
+    let list: PolicyList | null = null;
     let force = false;
     while (argumentIndex < 7 && argumentIndex < parts.length) {
         const arg = parts[argumentIndex++];
@@ -60,7 +59,7 @@ export async function parseArguments(roomId: string, event: any, mjolnir: Mjolni
             else if (arg.startsWith("!") && !ruleType) ruleType = RULE_ROOM;
             else if (!ruleType) ruleType = RULE_SERVER;
         } else if (!list) {
-            const foundList = mjolnir.lists.find(b => b.listShortcode.toLowerCase() === arg.toLowerCase());
+            const foundList = mjolnir.policyListManager.lists.find(b => b.listShortcode.toLowerCase() === arg.toLowerCase());
             if (foundList !== undefined) {
                 list = foundList;
             }
@@ -87,7 +86,7 @@ export async function parseArguments(roomId: string, event: any, mjolnir: Mjolni
     }
 
     if (!list) {
-        list = mjolnir.lists.find(b => b.listShortcode.toLowerCase() === defaultShortcode) || null;
+        list = mjolnir.policyListManager.lists.find(b => b.listShortcode.toLowerCase() === defaultShortcode) || null;
     }
 
     let replyMessage: string | null = null;
@@ -95,7 +94,7 @@ export async function parseArguments(roomId: string, event: any, mjolnir: Mjolni
     else if (!ruleType) replyMessage = "Please specify the type as either 'user', 'room', or 'server'";
     else if (!entity) replyMessage = "No entity found";
 
-    if (config.commands.confirmWildcardBan && /[*?]/.test(entity) && !force) {
+    if (mjolnir.config.commands.confirmWildcardBan && /[*?]/.test(entity) && !force) {
         replyMessage = "Wildcard bans require an additional `--force` argument to confirm";
     }
 
@@ -119,15 +118,7 @@ export async function execBanCommand(roomId: string, event: any, mjolnir: Mjolni
     const bits = await parseArguments(roomId, event, mjolnir, parts);
     if (!bits) return; // error already handled
 
-    const recommendation = recommendationToStable(RECOMMENDATION_BAN);
-    const ruleContent = {
-        entity: bits.entity,
-        recommendation,
-        reason: bits.reason || '<no reason supplied>',
-    };
-    const stateKey = `rule:${bits.entity}`;
-
-    await mjolnir.client.sendStateEvent(bits.list!.roomId, bits.ruleType!, stateKey, ruleContent);
+    await bits.list!.banEntity(bits.ruleType!, bits.entity, bits.reason);
     await mjolnir.client.unstableApis.addReactionToEvent(roomId, event['event_id'], '✅');
 }
 
@@ -138,23 +129,23 @@ export async function execUnbanCommand(roomId: string, event: any, mjolnir: Mjol
 
     await bits.list!.unbanEntity(bits.ruleType!, bits.entity);
 
-    if (USER_RULE_TYPES.includes(bits.ruleType!) && bits.reason === 'true') {
+    const unbanUserFromRooms = async () => {
         const rule = new MatrixGlob(bits.entity);
-        await mjolnir.logMessage(LogLevel.INFO, "UnbanBanCommand", "Unbanning users that match glob: " + bits.entity);
+        await mjolnir.managementRoomOutput.logMessage(LogLevel.INFO, "UnbanBanCommand", "Unbanning users that match glob: " + bits.entity);
         let unbannedSomeone = false;
-        for (const protectedRoomId of Object.keys(mjolnir.protectedRooms)) {
+        for (const protectedRoomId of mjolnir.protectedRoomsTracker.getProtectedRooms()) {
             const members = await mjolnir.client.getRoomMembers(protectedRoomId, undefined, ['ban'], undefined);
-            await mjolnir.logMessage(LogLevel.DEBUG, "UnbanBanCommand", `Found ${members.length} banned user(s)`);
+            await mjolnir.managementRoomOutput.logMessage(LogLevel.DEBUG, "UnbanBanCommand", `Found ${members.length} banned user(s)`);
             for (const member of members) {
                 const victim = member.membershipFor;
                 if (member.membership !== 'ban') continue;
                 if (rule.test(victim)) {
-                    await mjolnir.logMessage(LogLevel.DEBUG, "UnbanBanCommand", `Unbanning ${victim} in ${protectedRoomId}`, protectedRoomId);
+                    await mjolnir.managementRoomOutput.logMessage(LogLevel.DEBUG, "UnbanBanCommand", `Unbanning ${victim} in ${protectedRoomId}`, protectedRoomId);
 
-                    if (!config.noop) {
+                    if (!mjolnir.config.noop) {
                         await mjolnir.client.unbanUser(victim, protectedRoomId);
                     } else {
-                        await mjolnir.logMessage(LogLevel.WARN, "UnbanBanCommand", `Attempted to unban ${victim} in ${protectedRoomId} but Mjolnir is running in no-op mode`, protectedRoomId);
+                        await mjolnir.managementRoomOutput.logMessage(LogLevel.WARN, "UnbanBanCommand", `Attempted to unban ${victim} in ${protectedRoomId} but Mjolnir is running in no-op mode`, protectedRoomId);
                     }
 
                     unbannedSomeone = true;
@@ -163,8 +154,17 @@ export async function execUnbanCommand(roomId: string, event: any, mjolnir: Mjol
         }
 
         if (unbannedSomeone) {
-            await mjolnir.logMessage(LogLevel.DEBUG, "UnbanBanCommand", `Syncing lists to ensure no users were accidentally unbanned`);
-            await mjolnir.syncLists(config.verboseLogging);
+            await mjolnir.managementRoomOutput.logMessage(LogLevel.DEBUG, "UnbanBanCommand", `Syncing lists to ensure no users were accidentally unbanned`);
+            await mjolnir.protectedRoomsTracker.syncLists();
+        }
+    };
+
+    if (USER_RULE_TYPES.includes(bits.ruleType!)) {
+        mjolnir.unlistedUserRedactionHandler.removeUser(bits.entity);
+        if (bits.reason === 'true') {
+            await unbanUserFromRooms();
+        } else {
+            await mjolnir.managementRoomOutput.logMessage(LogLevel.WARN, "UnbanBanCommand", "Running unban without `unban <list> <user> true` will not override existing room level bans");
         }
     }
 

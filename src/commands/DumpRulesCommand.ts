@@ -16,7 +16,7 @@ limitations under the License.
 
 import { RichReply } from "matrix-bot-sdk";
 import { Mjolnir } from "../Mjolnir";
-import { RULE_ROOM, RULE_SERVER, RULE_USER } from "../models/BanList";
+import { EntityType } from "../models/ListRule";
 import { htmlEscape } from "../utils";
 
 /**
@@ -32,8 +32,8 @@ import { htmlEscape } from "../utils";
 export async function execRulesMatchingCommand(roomId: string, event: any, mjolnir: Mjolnir, entity: string) {
     let html = "";
     let text = "";
-    for (const list of mjolnir.lists) {
-        const matches =  list.rulesMatchingEntity(entity)
+    for (const list of mjolnir.policyListManager.lists) {
+        const matches = list.rulesMatchingEntity(entity)
 
         if (matches.length === 0) {
             continue;
@@ -48,12 +48,16 @@ export async function execRulesMatchingCommand(roomId: string, event: any, mjoln
         for (const rule of matches) {
             // If we know the rule kind, we will give it a readable name, otherwise just use its name.
             let ruleKind: string = rule.kind;
-            if (ruleKind === RULE_USER) {
-                ruleKind = 'user';
-            } else if (ruleKind === RULE_SERVER) {
-                ruleKind = 'server';
-            } else if (ruleKind === RULE_ROOM) {
-                ruleKind = 'room';
+            switch (ruleKind) {
+                case EntityType.RULE_USER:
+                    ruleKind = 'user';
+                    break;
+                case EntityType.RULE_SERVER:
+                    ruleKind = 'server';
+                    break;
+                case EntityType.RULE_ROOM:
+                    ruleKind = 'room';
+                    break;
             }
             html += `<li>${htmlEscape(ruleKind)} (<code>${htmlEscape(rule.recommendation ?? "")}</code>): <code>${htmlEscape(rule.entity)}</code> (${htmlEscape(rule.reason)})</li>`;
             text += `* ${ruleKind} (${rule.recommendation}): ${rule.entity} (${rule.reason})\n`;
@@ -85,7 +89,7 @@ export async function execDumpRulesCommand(roomId: string, event: any, mjolnir: 
     let hasLists = false;
     let i = 0;
 
-    for (const list of mjolnir.lists) {
+    for (const list of mjolnir.policyListManager.lists) {
         hasLists = true;
         let hasRules = false;
 

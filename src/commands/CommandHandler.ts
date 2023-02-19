@@ -28,8 +28,10 @@ import { execRedactCommand } from "./RedactCommand";
 import { execImportCommand } from "./ImportCommand";
 import { execSetDefaultListCommand } from "./SetDefaultBanListCommand";
 import { execDeactivateCommand } from "./DeactivateCommand";
-import { execDisableProtection, execEnableProtection, execListProtections, execConfigGetProtection,
-    execConfigSetProtection, execConfigAddProtection, execConfigRemoveProtection } from "./ProtectionsCommands";
+import {
+    execDisableProtection, execEnableProtection, execListProtections, execConfigGetProtection,
+    execConfigSetProtection, execConfigAddProtection, execConfigRemoveProtection
+} from "./ProtectionsCommands";
 import { execListProtectedRooms } from "./ListProtectedRoomsCommand";
 import { execAddProtectedRoom, execRemoveProtectedRoom } from "./AddRemoveProtectedRoomsCommand";
 import { execAddRoomToDirectoryCommand, execRemoveRoomFromDirectoryCommand } from "./AddRemoveRoomFromDirectoryCommand";
@@ -41,6 +43,7 @@ import { execMassKickCommand } from "./MassKickCommand";
 import { execMakeRoomAdminCommand } from "./MakeRoomAdminCommand";
 import { parse as tokenize } from "shell-quote";
 import { execSinceCommand } from "./SinceCommand";
+import { execSetupProtectedRoom } from "./SetupDecentralizedReportingCommand";
 
 
 export const COMMAND_PREFIX = "!mjolnir";
@@ -100,6 +103,8 @@ export async function handleCommand(roomId: string, event: { content: { body: st
             return await execAddProtectedRoom(roomId, event, mjolnir, parts);
         } else if (parts[1] === 'rooms' && parts.length > 3 && parts[2] === 'remove') {
             return await execRemoveProtectedRoom(roomId, event, mjolnir, parts);
+        } else if (parts[1] === 'rooms' && parts.length > 3 && parts[2] === 'setup') {
+            return await execSetupProtectedRoom(roomId, event, mjolnir, parts);
         } else if (parts[1] === 'rooms' && parts.length === 2) {
             return await execListProtectedRooms(roomId, event, mjolnir);
         } else if (parts[1] === 'move' && parts.length > 3) {
@@ -139,7 +144,7 @@ export async function handleCommand(roomId: string, event: { content: { body: st
                 "!mjolnir kick <glob> [room alias/ID] [reason]                       - Kicks a user or all of those matching a glob in a particular room or all protected rooms\n" +
                 "!mjolnir mass kick <regex> [room alias/ID] [reason]                 - Kicks users based on a regex in a particular room or all protected rooms\n" +
                 "!mjolnir rules                                                      - Lists the rules currently in use by Mjolnir\n" +
-                "!mjolnir rules matching <user|room|server>                          - Lists the rules in use that will match this entity e.g. `!rules matching @foo:example.com` will show all the user and server rules, including globs, that match this user." +
+                "!mjolnir rules matching <user|room|server>                          - Lists the rules in use that will match this entity e.g. `!rules matching @foo:example.com` will show all the user and server rules, including globs, that match this user\n" +
                 "!mjolnir sync                                                       - Force updates of all lists and re-apply rules\n" +
                 "!mjolnir verify                                                     - Ensures Mjolnir can moderate all your rooms\n" +
                 "!mjolnir list create <shortcode> <alias localpart>                  - Creates a new ban list with the given shortcode and alias\n" +
@@ -151,13 +156,14 @@ export async function handleCommand(roomId: string, event: { content: { body: st
                 "!mjolnir protections                                                - List all available protections\n" +
                 "!mjolnir enable <protection>                                        - Enables a particular protection\n" +
                 "!mjolnir disable <protection>                                       - Disables a particular protection\n" +
-                "!mjolnir config set <protection>.<setting> [value]                  - Change a projection setting\n" +
+                "!mjolnir config set <protection>.<setting> [value]                  - Change a protection setting\n" +
                 "!mjolnir config add <protection>.<setting> [value]                  - Add a value to a list protection setting\n" +
                 "!mjolnir config remove <protection>.<setting> [value]               - Remove a value from a list protection setting\n" +
                 "!mjolnir config get [protection]                                    - List protection settings\n" +
                 "!mjolnir rooms                                                      - Lists all the protected rooms\n" +
                 "!mjolnir rooms add <room alias/ID>                                  - Adds a protected room (may cause high server load)\n" +
                 "!mjolnir rooms remove <room alias/ID>                               - Removes a protected room\n" +
+                "!mjolnir rooms setup <room alias/ID> reporting                      - Setup decentralized reporting in a room\n" +
                 "!mjolnir move <room alias> <room alias/ID>                          - Moves a <room alias> to a new <room ID>\n" +
                 "!mjolnir directory add <room alias/ID>                              - Publishes a room in the server's room directory\n" +
                 "!mjolnir directory remove <room alias/ID>                           - Removes a room from the server's room directory\n" +

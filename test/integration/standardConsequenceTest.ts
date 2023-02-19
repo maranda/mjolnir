@@ -1,18 +1,17 @@
 import { strict as assert } from "assert";
 
-import config from "../../src/config";
 import { Mjolnir } from "../../src/Mjolnir";
-import { IProtection } from "../../src/protections/IProtection";
+import { Protection } from "../../src/protections/IProtection";
 import { newTestUser, noticeListener } from "./clientHelper";
 import { matrixClient, mjolnir } from "./mjolnirSetupUtils";
-import { ConsequenceType, Consequence } from "../../src/protections/consequence";
+import { ConsequenceBan, ConsequenceRedact } from "../../src/protections/consequence";
 
 describe("Test: standard consequences", function() {
     let badUser;
     let goodUser;
     this.beforeEach(async function () {
-        badUser = await newTestUser({ name: { contains: "standard-consequences" }});
-        goodUser = await newTestUser({ name: { contains: "standard-consequences" }});
+        badUser = await newTestUser(this.config.homeserverUrl, { name: { contains: "standard-consequences" }});
+        goodUser = await newTestUser(this.config.homeserverUrl, { name: { contains: "standard-consequences" }});
         await badUser.start();
         await goodUser.start();
     })
@@ -28,19 +27,19 @@ describe("Test: standard consequences", function() {
         await badUser.joinRoom(protectedRoomId);
         await this.mjolnir.addProtectedRoom(protectedRoomId);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "JY2TPN";
             description = "A test protection";
             settings = { };
             handleEvent = async (mjolnir: Mjolnir, roomId: string, event: any) => {
                 if (event.content.body === "ngmWkF") {
-                    return new Consequence(ConsequenceType.redact, "asd");
+                    return [new ConsequenceRedact("asd")];
                 }
             };
         });
-        await this.mjolnir.enableProtection("JY2TPN");
+        await this.mjolnir.protectionManager.enableProtection("JY2TPN");
 
-        let reply = new Promise(async (resolve, reject) => {
+        let reply: Promise<any> = new Promise(async (resolve, reject) => {
             const messageId = await badUser.sendMessage(protectedRoomId, {msgtype: "m.text", body: "ngmWkF"});
             let redaction;
             badUser.on('room.event', (roomId, event) => {
@@ -72,19 +71,19 @@ describe("Test: standard consequences", function() {
         await badUser.joinRoom(protectedRoomId);
         await this.mjolnir.addProtectedRoom(protectedRoomId);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "0LxMTy";
             description = "A test protection";
             settings = { };
             handleEvent = async (mjolnir: Mjolnir, roomId: string, event: any) => {
                 if (event.content.body === "7Uga3d") {
-                    return new Consequence(ConsequenceType.ban, "asd");
+                    return [new ConsequenceBan("asd")];
                 }
             };
         });
-        await this.mjolnir.enableProtection("0LxMTy");
+        await this.mjolnir.protectionManager.enableProtection("0LxMTy");
 
-        let reply = new Promise(async (resolve, reject) => {
+        let reply: Promise<any> = new Promise(async (resolve, reject) => {
             const messageId = await badUser.sendMessage(protectedRoomId, {msgtype: "m.text", body: "7Uga3d"});
             let ban;
             badUser.on('room.leave', (roomId, event) => {
@@ -119,17 +118,17 @@ describe("Test: standard consequences", function() {
         await goodUser.joinRoom(protectedRoomId);
         await this.mjolnir.addProtectedRoom(protectedRoomId);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "95B1Cr";
             description = "A test protection";
             settings = { };
             handleEvent = async (mjolnir: Mjolnir, roomId: string, event: any) => {
                 if (event.content.body === "8HUnwb") {
-                    return new Consequence(ConsequenceType.ban, "asd");
+                    return [new ConsequenceBan("asd")];
                 }
             };
         });
-        await this.mjolnir.enableProtection("95B1Cr");
+        await this.mjolnir.protectionManager.enableProtection("95B1Cr");
 
         let reply = new Promise(async (resolve, reject) => {
             this.mjolnir.client.on('room.message', async (roomId, event) => {

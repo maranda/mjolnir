@@ -18,7 +18,7 @@ import { Mjolnir, REPORT_POLL_EVENT_TYPE } from "../Mjolnir";
 import { ReportManager } from './ReportManager';
 import { LogLevel } from "matrix-bot-sdk";
 
-class InvalidStateError extends Error {}
+class InvalidStateError extends Error { }
 
 /**
  * A class to poll synapse's report endpoint, so we can act on new reports
@@ -68,16 +68,20 @@ export class ReportPoller {
             response_ = await this.mjolnir.client.doRequest(
                 "GET",
                 "/_synapse/admin/v1/event_reports",
-                { from: this.from.toString() }
+                {
+                    // short for direction: forward; i.e. show newest last
+                    dir: "f",
+                    from: this.from.toString()
+                }
             );
         } catch (ex) {
-            await this.mjolnir.logMessage(LogLevel.ERROR, "getAbuseReports", `failed to poll events: ${ex}`);
+            await this.mjolnir.managementRoomOutput.logMessage(LogLevel.ERROR, "getAbuseReports", `failed to poll events: ${ex}`);
             return;
         }
 
         const response = response_!;
         for (let report of response.event_reports) {
-            if (!(report.room_id in this.mjolnir.protectedRooms)) {
+            if (!this.mjolnir.protectedRoomsTracker.isProtectedRoom(report.room_id)) {
                 continue;
             }
 
@@ -88,7 +92,7 @@ export class ReportPoller {
                     `/_synapse/admin/v1/rooms/${report.room_id}/context/${report.event_id}?limit=1`
                 )).event;
             } catch (ex) {
-                this.mjolnir.logMessage(LogLevel.ERROR, "getAbuseReports", `failed to get context: ${ex}`);
+                this.mjolnir.managementRoomOutput.logMessage(LogLevel.ERROR, "getAbuseReports", `failed to get context: ${ex}`);
                 continue;
             }
 
@@ -108,9 +112,9 @@ export class ReportPoller {
         if (response.next_token !== undefined) {
             this.from = response.next_token;
             try {
-               await this.mjolnir.client.setAccountData(REPORT_POLL_EVENT_TYPE, { from: response.next_token });
+                await this.mjolnir.client.setAccountData(REPORT_POLL_EVENT_TYPE, { from: response.next_token });
             } catch (ex) {
-                await this.mjolnir.logMessage(LogLevel.ERROR, "getAbuseReports", `failed to update progress: ${ex}`);
+                await this.mjolnir.managementRoomOutput.logMessage(LogLevel.ERROR, "getAbuseReports", `failed to update progress: ${ex}`);
             }
         }
     }
@@ -121,7 +125,7 @@ export class ReportPoller {
         try {
             await this.getAbuseReports()
         } catch (ex) {
-            await this.mjolnir.logMessage(LogLevel.ERROR, "tryGetAbuseReports", `failed to get abuse reports: ${ex}`);
+            await this.mjolnir.managementRoomOutput.logMessage(LogLevel.ERROR, "tryGetAbuseReports", `failed to get abuse reports: ${ex}`);
         }
 
         this.schedulePoll();

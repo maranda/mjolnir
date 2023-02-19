@@ -1,9 +1,7 @@
 import { strict as assert } from "assert";
 
-import config from "../../src/config";
 import { Mjolnir } from "../../src/Mjolnir";
-import { IProtection } from "../../src/protections/IProtection";
-import { PROTECTIONS } from "../../src/protections/protections";
+import { Protection } from "../../src/protections/IProtection";
 import { ProtectionSettingValidationError } from "../../src/protections/ProtectionSettings";
 import { NumberProtectionSetting, StringProtectionSetting, StringListProtectionSetting } from "../../src/protections/ProtectionSettings";
 import { newTestUser, noticeListener } from "./clientHelper";
@@ -12,7 +10,7 @@ import { matrixClient, mjolnir } from "./mjolnirSetupUtils";
 describe("Test: Protection settings", function() {
     let client;
     this.beforeEach(async function () {
-        client = await newTestUser({ name: { contains: "protection-settings" }});
+        client = await newTestUser(this.config.homeserverUrl, { name: { contains: "protection-settings" }});
         await client.start();
     })
     this.afterEach(async function () {
@@ -21,47 +19,48 @@ describe("Test: Protection settings", function() {
     it("Mjolnir refuses to save invalid protection setting values", async function() {
         this.timeout(20000);
         await assert.rejects(
-            async () => await this.mjolnir.setProtectionSettings("BasicFloodingProtection", {"maxPerMinute": "soup"}),
+            async () => await this.mjolnir.protectionManager.setProtectionSettings("BasicFloodingProtection", {"maxPerMinute": "soup"}),
             ProtectionSettingValidationError
         );
     });
     it("Mjolnir successfully saves valid protection setting values", async function() {
         this.timeout(20000);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "05OVMS";
             description = "A test protection";
             settings = { test: new NumberProtectionSetting(3) };
         });
 
-        await this.mjolnir.setProtectionSettings("05OVMS", { test: 123 });
+        await this.mjolnir.protectionManager.setProtectionSettings("05OVMS", { test: 123 });
         assert.equal(
-            (await this.mjolnir.getProtectionSettings("05OVMS"))["test"],
+            (await this.mjolnir.protectionManager.getProtectionSettings("05OVMS"))["test"],
             123
         );
     });
     it("Mjolnir should accumulate changed settings", async function() {
         this.timeout(20000);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "HPUjKN";
+            description = "A test protection";
             settings = {
                 test1: new NumberProtectionSetting(3),
                 test2: new NumberProtectionSetting(4)
             };
         });
 
-        await this.mjolnir.setProtectionSettings("HPUjKN", { test1: 1 });
-        await this.mjolnir.setProtectionSettings("HPUjKN", { test2: 2 });
-        const settings = await this.mjolnir.getProtectionSettings("HPUjKN");
+        await this.mjolnir.protectionManager.setProtectionSettings("HPUjKN", { test1: 1 });
+        await this.mjolnir.protectionManager.setProtectionSettings("HPUjKN", { test2: 2 });
+        const settings = await this.mjolnir.protectionManager.getProtectionSettings("HPUjKN");
         assert.equal(settings["test1"], 1);
         assert.equal(settings["test2"], 2);
     });
     it("Mjolnir responds to !set correctly", async function() {
         this.timeout(20000);
-        await client.joinRoom(config.managementRoom);
+        await client.joinRoom(this.config.managementRoom);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "JY2TPN";
             description = "A test protection";
             settings = { test: new StringProtectionSetting() };
@@ -79,14 +78,14 @@ describe("Test: Protection settings", function() {
         await client.sendMessage(this.mjolnir.managementRoomId, {msgtype: "m.text", body: "!mjolnir config set JY2TPN.test asd"})
         await reply
 
-        const settings = await this.mjolnir.getProtectionSettings("JY2TPN");
+        const settings = await this.mjolnir.protectionManager.getProtectionSettings("JY2TPN");
         assert.equal(settings["test"], "asd");
     });
     it("Mjolnir adds a value to a list setting", async function() {
         this.timeout(20000);
-        await client.joinRoom(config.managementRoom);
+        await client.joinRoom(this.config.managementRoom);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "r33XyT";
             description = "A test protection";
             settings = { test: new StringListProtectionSetting() };
@@ -104,13 +103,13 @@ describe("Test: Protection settings", function() {
         await client.sendMessage(this.mjolnir.managementRoomId, {msgtype: "m.text", body: "!mjolnir config add r33XyT.test asd"})
         await reply
 
-        assert.deepEqual(await this.mjolnir.getProtectionSettings("r33XyT"), { "test": ["asd"] });
+        assert.deepEqual(await this.mjolnir.protectionManager.getProtectionSettings("r33XyT"), { "test": ["asd"] });
     });
     it("Mjolnir removes a value from a list setting", async function() {
         this.timeout(20000);
-        await client.joinRoom(config.managementRoom);
+        await client.joinRoom(this.config.managementRoom);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "oXzT0E";
             description = "A test protection";
             settings = { test: new StringListProtectionSetting() };
@@ -129,19 +128,19 @@ describe("Test: Protection settings", function() {
         await client.sendMessage(this.mjolnir.managementRoomId, {msgtype: "m.text", body: "!mjolnir config remove oXzT0E.test asd"})
         await reply();
 
-        assert.deepEqual(await this.mjolnir.getProtectionSettings("oXzT0E"), { "test": [] });
+        assert.deepEqual(await this.mjolnir.protectionManager.getProtectionSettings("oXzT0E"), { "test": [] });
     });
     it("Mjolnir will change a protection setting in-place", async function() {
         this.timeout(20000);
-        await client.joinRoom(config.managementRoom);
+        await client.joinRoom(this.config.managementRoom);
 
-        await this.mjolnir.registerProtection(new class implements IProtection {
+        await this.mjolnir.protectionManager.registerProtection(new class extends Protection {
             name = "d0sNrt";
             description = "A test protection";
             settings = { test: new StringProtectionSetting() };
         });
 
-        let replyPromise = new Promise((resolve, reject) => {
+        let replyPromise: Promise<any> = new Promise((resolve, reject) => {
             let i = 0;
             client.on('room.message', noticeListener(this.mjolnir.managementRoomId, (event) => {
                 if (event.content.body.includes("Changed d0sNrt.test ")) {

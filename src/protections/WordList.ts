@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import { Protection } from "./IProtection";
+import { ConsequenceBan, ConsequenceRedact } from "./consequence";
 import { Mjolnir } from "../Mjolnir";
 import { LogLevel, LogService } from "matrix-bot-sdk";
-import config from "../config";
 import { isTrueJoinEvent } from "../utils";
 
 export class WordList extends Protection {
@@ -25,15 +25,10 @@ export class WordList extends Protection {
     settings = {};
 
     private justJoined: { [roomId: string]: { [username: string]: Date} } = {};
-    private badWords: RegExp;
+    private badWords?: RegExp;
 
     constructor() {
         super();
-        // Create a mega-regex from all the tiny baby regexs
-        this.badWords = new RegExp(
-            "(" + config.protections.wordlist.words.join(")|(") + ")",
-            "i"
-        )
     }
 
     public get name(): string {
@@ -47,7 +42,7 @@ export class WordList extends Protection {
     public async handleEvent(mjolnir: Mjolnir, roomId: string, event: any): Promise<any> {
 
         const content = event['content'] || {};
-        const minsBeforeTrusting = config.protections.wordlist.minutesBeforeTrusting;
+        const minsBeforeTrusting = mjolnir.config.protections.wordlist.minutesBeforeTrusting;
 
         if (minsBeforeTrusting > 0) {
             if (!this.justJoined[roomId]) this.justJoined[roomId] = {};
@@ -69,6 +64,9 @@ export class WordList extends Protection {
 
         if (event['type'] === 'm.room.message') {
             const message = content['formatted_body'] || content['body'] || null;
+            if (!message) {
+                return;
+            }
 
             // Check conditions first
             if (minsBeforeTrusting > 0) {
@@ -89,23 +87,26 @@ export class WordList extends Protection {
                     return
                 }
             }
+            if (!this.badWords) {
+                // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#escaping
+                const escapeRegExp = (string: string) => {
+                    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                };
 
-
-            // Perform the test
-            if (message && this.badWords.test(message)) {
-                await mjolnir.logMessage(LogLevel.WARN, "WordList", `Banning ${event['sender']} for word list violation in ${roomId}.`);
-                if (!config.noop) {
-                    await mjolnir.client.banUser(event['sender'], roomId, "Word list violation");
-                } else {
-                    await mjolnir.logMessage(LogLevel.WARN, "WordList", `Tried to ban ${event['sender']} in ${roomId} but Mjolnir is running in no-op mode`, roomId);
+                // Create a mega-regex from all the tiny words.
+                const words = mjolnir.config.protections.wordlist.words.filter(word => word.length !== 0).map(escapeRegExp);
+                if (words.length === 0) {
+                    mjolnir.managementRoomOutput.logMessage(LogLevel.ERROR, "WordList", `Someone turned on the word list protection without configuring any words. Disabling.`);
+                    this.enabled = false;
+                    return;
                 }
+                this.badWords = new RegExp(words.join("|"), "i");
+            }
 
-                // Redact the event
-                if (!config.noop) {
-                    await mjolnir.client.redactEvent(roomId, event['event_id'], "spam");
-                } else {
-                    await mjolnir.logMessage(LogLevel.WARN, "WordList", `Tried to redact ${event['event_id']} in ${roomId} but Mjolnir is running in no-op mode`, roomId);
-                }
+            const match = this.badWords!.exec(message);
+            if (match) {
+                const reason = `bad word: ${match[0]}`;
+                return [new ConsequenceBan(reason), new ConsequenceRedact(reason)];
             }
         }
     }

@@ -32,9 +32,9 @@ dataPath: "./test/harness/mjolnir-data/"
 # to new rooms.
 autojoinOnlyIfManager: true
 
-# If `autojoinOnlyIfManager` is false, only the members in this group can invite
+# If `autojoinOnlyIfManager` is false, only the members in this space can invite
 # the bot to new rooms.
-acceptInvitesFromGroup: '+example:example.org'
+acceptInvitesFromSpace: '!example:example.org'
 
 # If the bot is invited to a room and it won't accept the invite (due to the
 # conditions above), report it to the management room. Defaults to disabled (no
@@ -176,6 +176,19 @@ health:
     # The HTTP status code which reports that the bot is not healthy/ready.
     # Defaults to 418.
     unhealthyStatus: 418
+
+  openMetrics:
+    # Whether openMetrics should be enabled (default false, activated for tests)
+    enabled: true
+
+    # The port to expose the webserver on. Defaults to 8081.
+    port: 9090
+
+    # The address to listen for requests on. Defaults to all addresses.
+    address: "0.0.0.0"
+
+    # The path to expose the monitoring endpoint at. Defaults to `/metrics`
+    endpoint: "/metrics"
 
 # Options for exposing web APIs.
 web:

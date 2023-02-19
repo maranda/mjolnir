@@ -15,22 +15,21 @@ limitations under the License.
 */
 
 import {
-    extractRequestError,
     LogLevel,
     LogService,
-    MatrixClient,
     MatrixGlob,
-    MessageType,
-    Permalinks,
-    TextualMessageEventContent,
-    UserID,
     getRequestFn,
     setRequestFn,
 } from "matrix-bot-sdk";
-import { Mjolnir } from "./Mjolnir";
-import config from "./config";
 import { ClientRequest, IncomingMessage } from "http";
 import { default as parseDuration } from "parse-duration";
+import * as Sentry from '@sentry/node';
+import * as _ from '@sentry/tracing'; // Performing the import activates tracing.
+import { collectDefaultMetrics, Counter, Histogram, register } from "prom-client";
+
+import ManagementRoomOutput from "./ManagementRoomOutput";
+import { IHealthConfig } from "./config";
+import { MatrixSendClient } from "./MatrixEmitter";
 
 // Define a few aliases to simplify parsing durations.
 
@@ -71,17 +70,29 @@ export function isTrueJoinEvent(event: any): boolean {
     return membership === 'join' && prevMembership !== "join";
 }
 
-export async function redactUserMessagesIn(mjolnir: Mjolnir, userIdOrGlob: string, targetRoomIds: string[], limit = 1000) {
+/**
+ * Redact a user's messages in a set of rooms.
+ * See `getMessagesByUserIn`.
+ *
+ * @param client Client to redact the messages with.
+ * @param managementRoom Management room to log messages back to.
+ * @param userIdOrGlob A mxid or a glob which is applied to the whole sender field of events in the room, which will be redacted if they match.
+ * See `MatrixGlob` in matrix-bot-sdk.
+ * @param targetRoomIds Rooms to redact the messages from.
+ * @param limit The number of messages to redact from most recent first. If the limit is reached then no further messages will be redacted.
+ * @param noop Whether to operate in noop mode.
+ */
+export async function redactUserMessagesIn(client: MatrixSendClient, managementRoom: ManagementRoomOutput, userIdOrGlob: string, targetRoomIds: string[], limit = 1000, noop = false) {
     for (const targetRoomId of targetRoomIds) {
-        await mjolnir.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Fetching sent messages for ${userIdOrGlob} in ${targetRoomId} to redact...`, targetRoomId);
+        await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Fetching sent messages for ${userIdOrGlob} in ${targetRoomId} to redact...`, targetRoomId);
 
-        await getMessagesByUserIn(mjolnir.client, userIdOrGlob, targetRoomId, limit, async (eventsToRedact) => {
+        await getMessagesByUserIn(client, userIdOrGlob, targetRoomId, limit, async (eventsToRedact) => {
             for (const victimEvent of eventsToRedact) {
-                await mjolnir.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Redacting ${victimEvent['event_id']} in ${targetRoomId}`, targetRoomId);
-                if (!config.noop) {
-                    await mjolnir.client.redactEvent(targetRoomId, victimEvent['event_id']);
+                await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Redacting ${victimEvent['event_id']} in ${targetRoomId}`, targetRoomId);
+                if (!noop) {
+                    await client.redactEvent(targetRoomId, victimEvent['event_id']);
                 } else {
-                    await mjolnir.logMessage(LogLevel.WARN, "utils#redactUserMessagesIn", `Tried to redact ${victimEvent['event_id']} in ${targetRoomId} but Mjolnir is running in no-op mode`, targetRoomId);
+                    await managementRoom.logMessage(LogLevel.WARN, "utils#redactUserMessagesIn", `Tried to redact ${victimEvent['event_id']} in ${targetRoomId} but Mjolnir is running in no-op mode`, targetRoomId);
                 }
             }
         });
@@ -91,7 +102,7 @@ export async function redactUserMessagesIn(mjolnir: Mjolnir, userIdOrGlob: strin
 /**
  * Gets all the events sent by a user (or users if using wildcards) in a given room ID, since
  * the time they joined.
- * @param {MatrixClient} client The client to use.
+ * @param {MatrixSendClient} client The client to use.
  * @param {string} sender The sender. A matrix user id or a wildcard to match multiple senders e.g. *.example.com.
  * Can also be used to generically search the sender field e.g. *bob* for all events from senders with "bob" in them.
  * See `MatrixGlob` in matrix-bot-sdk.
@@ -104,7 +115,7 @@ export async function redactUserMessagesIn(mjolnir: Mjolnir, userIdOrGlob: strin
  * The callback will only be called if there are any relevant events.
  * @returns {Promise<void>} Resolves when either: the limit has been reached, no relevant events could be found or there is no more timeline to paginate.
  */
-export async function getMessagesByUserIn(client: MatrixClient, sender: string, roomId: string, limit: number, cb: (events: any[]) => void): Promise<void> {
+export async function getMessagesByUserIn(client: MatrixSendClient, sender: string, roomId: string, limit: number, cb: (events: any[]) => void): Promise<void> {
     const isGlob = sender.includes("*");
     const roomEventFilter = {
         rooms: [roomId],
@@ -188,50 +199,6 @@ export async function getMessagesByUserIn(client: MatrixClient, sender: string, 
             return;
         }
     } while (token && processed < limit)
-}
-
-/*
- * Take an arbitrary string and a set of room IDs, and return a
- * TextualMessageEventContent whose plaintext component replaces those room
- * IDs with their canonical aliases, and whose html component replaces those
- * room IDs with their matrix.to room pills.
- *
- * @param client The matrix client on which to query for room aliases
- * @param text An arbitrary string to rewrite with room aliases and pills
- * @param roomIds A set of room IDs to find and replace in `text`
- * @param msgtype The desired message type of the returned TextualMessageEventContent
- * @returns A TextualMessageEventContent with replaced room IDs
- */
-export async function replaceRoomIdsWithPills(mjolnir: Mjolnir, text: string, roomIds: Set<string>, msgtype: MessageType = "m.text"): Promise<TextualMessageEventContent> {
-    const content: TextualMessageEventContent = {
-        body: text,
-        formatted_body: htmlEscape(text),
-        msgtype: msgtype,
-        format: "org.matrix.custom.html",
-    };
-
-    const escapeRegex = (v: string): string => {
-        return v.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    };
-
-    const viaServers = [(new UserID(await mjolnir.client.getUserId())).domain];
-    for (const roomId of roomIds) {
-        let alias = roomId;
-        try {
-            alias = (await mjolnir.client.getPublishedAlias(roomId)) || roomId;
-        } catch (e) {
-            // This is a recursive call, so tell the function not to try and call us
-            await mjolnir.logMessage(LogLevel.WARN, "utils", `Failed to resolve room alias for ${roomId} - see console for details`, null, true);
-            LogService.warn("utils", extractRequestError(e));
-        }
-        const regexRoomId = new RegExp(escapeRegex(roomId), "g");
-        content.body = content.body.replace(regexRoomId, alias);
-        if (content.formatted_body) {
-            content.formatted_body = content.formatted_body.replace(regexRoomId, `<a href="${Permalinks.forRoom(alias, viaServers)}">${alias}</a>`);
-        }
-    }
-
-    return content;
 }
 
 let isMatrixClientPatchedForConciseExceptions = false;
@@ -434,3 +401,72 @@ export function patchMatrixClient() {
     patchMatrixClientForConciseExceptions();
     patchMatrixClientForRetry();
 }
+
+/**
+ * Initialize performance measurements for the matrix client.
+ *
+ * This method is idempotent. If `config` specifies that Open Metrics
+ * should not be used, it does nothing.
+ */
+export function initializeGlobalPerformanceMetrics(config: IHealthConfig) {
+    if (isGlobalPerformanceMetricsCollectorInitialized || !config.health?.openMetrics?.enabled) {
+        return;
+    }
+
+    // Collect the Prometheus-recommended metrics.
+    collectDefaultMetrics({ register });
+
+    // Collect matrix-bot-sdk-related metrics.
+    let originalRequestFn = getRequestFn();
+    let perfHistogram = new Histogram({
+        name: "mjolnir_performance_http_request",
+        help: "Duration of HTTP requests in seconds",
+    });
+    let successfulRequestsCounter = new Counter({
+        name: "mjolnir_status_api_request_pass",
+        help: "Number of successful API requests",
+    });
+    let failedRequestsCounter = new Counter({
+        name: "mjolnir_status_api_request_fail",
+        help: "Number of failed API requests",
+    });
+    setRequestFn(async (params: { [k: string]: any }, cb: any) => {
+        let timer = perfHistogram.startTimer();
+        return await originalRequestFn(params, function(error: object, response: any, body: string) {
+            // Stop timer before calling callback.
+            timer();
+            if (error) {
+                failedRequestsCounter.inc();
+            } else {
+                successfulRequestsCounter.inc();
+            }
+            cb(error, response, body);
+        });
+    });
+    isGlobalPerformanceMetricsCollectorInitialized = true;
+}
+let isGlobalPerformanceMetricsCollectorInitialized = false;
+
+/**
+ * Initialize Sentry for error monitoring and reporting.
+ *
+ * This method is idempotent. If `config` specifies that Sentry
+ * should not be used, it does nothing.
+ */
+export function initializeSentry(config: IHealthConfig) {
+    if (sentryInitialized) {
+        return;
+    }
+    if (config.health?.sentry) {
+        // Configure error monitoring with Sentry.
+        let sentry = config.health.sentry;
+        Sentry.init({
+            dsn: sentry.dsn,
+            tracesSampleRate: sentry.tracesSampleRate,
+        });
+        sentryInitialized = true;
+    }
+}
+// Set to `true` once we have initialized `Sentry` to ensure
+// that we do not attempt to initialize it more than once.
+let sentryInitialized = false;

@@ -1,11 +1,11 @@
 import { Mjolnir } from "../../src/Mjolnir";
-import { IProtection } from "../../src/protections/IProtection";
+import { Protection } from "../../src/protections/IProtection";
 import { newTestUser } from "./clientHelper";
 
 describe("Test: Report polling", function() {
     let client;
     this.beforeEach(async function () {
-        client = await newTestUser({ name: { contains: "protection-settings" }});
+        client = await newTestUser(this.config.homeserverUrl, { name: { contains: "protection-settings" }});
     })
     it("Mjolnir correctly retrieves a report from synapse", async function() {
         this.timeout(40000);
@@ -15,19 +15,22 @@ describe("Test: Report polling", function() {
         await this.mjolnir.addProtectedRoom(protectedRoomId);
 
         const eventId = await client.sendMessage(protectedRoomId, {msgtype: "m.text", body: "uwNd3q"});
+        class CustomProtection extends Protection {
+            name = "jYvufI";
+            description = "A test protection";
+            settings = { };
+            constructor(private resolve) {
+                super();
+            }
+            async handleReport (mjolnir: Mjolnir, roomId: string, reporterId: string, event: any, reason?: string) {
+                if (reason === "x5h1Je") {
+                    this.resolve(null);
+                }
+            }
+        }
         await new Promise(async resolve => {
-            await this.mjolnir.registerProtection(new class implements IProtection {
-                name = "jYvufI";
-                description = "A test protection";
-                settings = { };
-                handleEvent = async (mjolnir: Mjolnir, roomId: string, event: any) => { };
-                handleReport = (mjolnir: Mjolnir, roomId: string, reporterId: string, event: any, reason?: string) => {
-                    if (reason === "x5h1Je") {
-                        resolve(null);
-                    }
-                };
-            });
-            await this.mjolnir.enableProtection("jYvufI");
+            await this.mjolnir.protectionManager.registerProtection(new CustomProtection(resolve));
+            await this.mjolnir.protectionManager.enableProtection("jYvufI");
             await client.doRequest(
                 "POST",
                 `/_matrix/client/r0/rooms/${encodeURIComponent(protectedRoomId)}/report/${encodeURIComponent(eventId)}`, "", {

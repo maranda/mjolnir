@@ -24,11 +24,11 @@ describe("Test: DetectFederationLag protection", function() {
     beforeEach(async function() {
         // Setup an instance of DetectFederationLag
         this.detector = new DetectFederationLag();
-        await this.mjolnir.registerProtection(this.detector);
-        await this.mjolnir.enableProtection("DetectFederationLag");
+        await this.mjolnir.protectionManager.registerProtection(this.detector);
+        await this.mjolnir.protectionManager.enableProtection("DetectFederationLag");
 
         // Setup a moderator.
-        this.moderator = await newTestUser({ name: { contains: "moderator" } });
+        this.moderator = await newTestUser(this.config.homeserverUrl, { name: { contains: "moderator" } });
         await this.moderator.joinRoom(this.mjolnir.managementRoomId);
 
         const SETTINGS = {

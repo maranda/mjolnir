@@ -16,21 +16,20 @@ limitations under the License.
 
 import { Mjolnir } from "../Mjolnir";
 import { LogLevel, MatrixGlob, RichReply } from "matrix-bot-sdk";
-import config from "../config";
 
 // !mjolnir kick <user|filter> [room] [reason]
 export async function execKickCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
     let force = false;
 
     const glob = parts[2];
-    let rooms = [...Object.keys(mjolnir.protectedRooms)];
+    let rooms = mjolnir.protectedRoomsTracker.getProtectedRooms();
 
     if (parts[parts.length - 1] === "--force") {
         force = true;
         parts.pop();
     }
 
-    if (config.commands.confirmWildcardBan && /[*?]/.test(glob) && !force) {
+    if (mjolnir.config.commands.confirmWildcardBan && /[*?]/.test(glob) && !force) {
         let replyMessage = "Wildcard bans require an addition `--force` argument to confirm";
         const reply = RichReply.createFor(roomId, event, replyMessage, replyMessage);
         reply["msgtype"] = "m.notice";
@@ -58,18 +57,18 @@ export async function execKickCommand(roomId: string, event: any, mjolnir: Mjoln
             const victim = member.membershipFor;
 
             if (kickRule.test(victim)) {
-                await mjolnir.logMessage(LogLevel.DEBUG, "KickCommand", `Removing ${victim} in ${protectedRoomId}`, protectedRoomId);
+                await mjolnir.managementRoomOutput.logMessage(LogLevel.DEBUG, "KickCommand", `Removing ${victim} in ${protectedRoomId}`, protectedRoomId);
 
-                if (!config.noop) {
+                if (!mjolnir.config.noop) {
                     try {
                         await mjolnir.taskQueue.push(async () => {
                             return mjolnir.client.kickUser(victim, protectedRoomId, reason);
                         });
                     } catch (e) {
-                        await mjolnir.logMessage(LogLevel.WARN, "KickCommand", `An error happened while trying to kick ${victim}: ${e}`);
+                        await mjolnir.managementRoomOutput.logMessage(LogLevel.WARN, "KickCommand", `An error happened while trying to kick ${victim}: ${e}`);
                     }
                 } else {
-                    await mjolnir.logMessage(LogLevel.WARN, "KickCommand", `Tried to kick ${victim} in ${protectedRoomId} but the bot is running in no-op mode.`, protectedRoomId);
+                    await mjolnir.managementRoomOutput.logMessage(LogLevel.WARN, "KickCommand", `Tried to kick ${victim} in ${protectedRoomId} but the bot is running in no-op mode.`, protectedRoomId);
                 }
             }
         }

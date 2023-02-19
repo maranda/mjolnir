@@ -22,7 +22,7 @@ export const DEFAULT_LIST_EVENT_TYPE = "org.matrix.mjolnir.default_list";
 // !mjolnir default <shortcode>
 export async function execSetDefaultListCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
     const shortcode = parts[2];
-    const list = mjolnir.lists.find(b => b.listShortcode === shortcode);
+    const list = mjolnir.policyListManager.lists.find(b => b.listShortcode === shortcode);
     if (!list) {
         const replyText = "No ban list with that shortcode was found.";
         const reply = RichReply.createFor(roomId, event, replyText, replyText);
@@ -31,6 +31,6 @@ export async function execSetDefaultListCommand(roomId: string, event: any, mjol
         return;
     }
 
-    await mjolnir.client.setAccountData(DEFAULT_LIST_EVENT_TYPE, {shortcode});
+    await mjolnir.client.setAccountData(DEFAULT_LIST_EVENT_TYPE, { shortcode });
     await mjolnir.client.unstableApis.addReactionToEvent(roomId, event['event_id'], '✅');
 }

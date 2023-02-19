@@ -16,13 +16,13 @@ limitations under the License.
 
 import { Mjolnir } from "../Mjolnir";
 import { RichReply } from "matrix-bot-sdk";
-import { RECOMMENDATION_BAN, recommendationToStable } from "../models/ListRule";
-import { RULE_SERVER, RULE_USER, ruleTypeToStable } from "../models/BanList";
+import { EntityType } from "../models/ListRule";
+import PolicyList from "../models/PolicyList";
 
 // !mjolnir import <room ID> <shortcode>
 export async function execImportCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
     const importRoomId = await mjolnir.client.resolveRoom(parts[2]);
-    const list = mjolnir.lists.find(b => b.listShortcode === parts[3]);
+    const list = mjolnir.policyListManager.lists.find(b => b.listShortcode === parts[3]) as PolicyList;
     if (!list) {
         const errMessage = "Unable to find list - check your shortcode.";
         const errReply = RichReply.createFor(roomId, event, errMessage, errMessage);
@@ -44,18 +44,7 @@ export async function execImportCommand(roomId: string, event: any, mjolnir: Mjo
                 const reason = content['reason'] || '<no reason>';
 
                 await mjolnir.client.sendNotice(mjolnir.managementRoomId, `Adding user ${stateEvent['state_key']} to ban list`);
-
-                const recommendation = recommendationToStable(RECOMMENDATION_BAN);
-                const ruleContent = {
-                    entity: stateEvent['state_key'],
-                    recommendation,
-                    reason: reason,
-                };
-                const stateKey = `rule:${ruleContent.entity}`;
-                let stableRule = ruleTypeToStable(RULE_USER);
-                if (stableRule) {
-                    await mjolnir.client.sendStateEvent(list.roomId, stableRule, stateKey, ruleContent);
-                }
+                await list.banEntity(EntityType.RULE_USER, stateEvent['state_key'], reason);
                 importedRules++;
             }
         } else if (stateEvent['type'] === 'm.room.server_acl' && stateEvent['state_key'] === '') {
@@ -66,17 +55,7 @@ export async function execImportCommand(roomId: string, event: any, mjolnir: Mjo
 
                 await mjolnir.client.sendNotice(mjolnir.managementRoomId, `Adding server ${server} to ban list`);
 
-                const recommendation = recommendationToStable(RECOMMENDATION_BAN);
-                const ruleContent = {
-                    entity: server,
-                    recommendation,
-                    reason: reason,
-                };
-                const stateKey = `rule:${ruleContent.entity}`;
-                let stableRule = ruleTypeToStable(RULE_SERVER);
-                if (stableRule) {
-                    await mjolnir.client.sendStateEvent(list.roomId, stableRule, stateKey, ruleContent);
-                }
+                await list.banEntity(EntityType.RULE_SERVER, server, reason);
                 importedRules++;
             }
         }
