@@ -16,13 +16,12 @@ limitations under the License.
 
 import { Mjolnir } from "../Mjolnir";
 import { extractRequestError, LogLevel, RichReply } from "matrix-bot-sdk";
-import config from "../config";
 
 // !mjolnir mass kick <pattern> [room] [reason]
 export async function execMassKickCommand(roomId: string, event: any, mjolnir: Mjolnir, parts: string[]) {
     const pattern = new RegExp(parts[3]);
 
-    let rooms = [...Object.keys(mjolnir.protectedRooms)];
+    let rooms = mjolnir.protectedRoomsTracker.getProtectedRooms();
     let reason;
     if (parts.length > 4) {
         let reasonIndex = 4;
@@ -39,20 +38,20 @@ export async function execMassKickCommand(roomId: string, event: any, mjolnir: M
         const filteredUsers = joinedUsers.filter(matrixId => matrixId.match(pattern));
 
         for (const user of filteredUsers) {
-            if (!config.noop) {
-                await mjolnir.logMessage(LogLevel.INFO, "MassKickCommand", `Kicking ${user} in ${targetRoomId} for ${reason}`);
+            if (!mjolnir.config.noop) {
+                await mjolnir.managementRoomOutput.logMessage(LogLevel.INFO, "MassKickCommand", `Kicking ${user} in ${targetRoomId} for ${reason}`);
                 try {
                     await mjolnir.client.kickUser(user, targetRoomId, reason);
                 } catch (e) {
                     const error = extractRequestError(e);
-                    await mjolnir.logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${error}`);
+                    await mjolnir.managementRoomOutput.logMessage(LogLevel.WARN, "MassKickCommand", `Failed to kick ${user} in ${targetRoomId}: ${error}`);
                     const text = `Failed to kick ${user}: ${error}`;
                     const reply = RichReply.createFor(roomId, event, text, text);
                     reply["msgtype"] = "m.notice";
                     await mjolnir.client.sendMessage(roomId, reply);
                 }
             } else {
-                await mjolnir.logMessage(LogLevel.WARN, "MassKickCommand", `Tried to kick ${user} in ${targetRoomId} but the bot is running in no-op mode.`);
+                await mjolnir.managementRoomOutput.logMessage(LogLevel.WARN, "MassKickCommand", `Tried to kick ${user} in ${targetRoomId} but the bot is running in no-op mode.`);
             }
         }
     }
