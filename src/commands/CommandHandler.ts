@@ -39,7 +39,6 @@ import { execSetPowerLevelCommand } from "./SetPowerLevelCommand";
 import { execShutdownRoomCommand } from "./ShutdownRoomCommand";
 import { execAddAliasCommand, execMoveAliasCommand, execRemoveAliasCommand, execResolveCommand } from "./AliasCommands";
 import { execKickCommand } from "./KickCommand";
-import { execMassKickCommand } from "./MassKickCommand";
 import { execMakeRoomAdminCommand } from "./MakeRoomAdminCommand";
 import { parse as tokenize } from "shell-quote";
 import { execSinceCommand } from "./SinceCommand";
@@ -127,8 +126,6 @@ export async function handleCommand(roomId: string, event: { content: { body: st
             return await execSinceCommand(roomId, event, mjolnir, tokens);
         } else if (parts[1] === 'kick' && parts.length > 2) {
             return await execKickCommand(roomId, event, mjolnir, parts);
-        } else if (parts[1] === 'mass' && parts[2] === 'kick' && parts.length > 3) {
-            return await execMassKickCommand(roomId, event, mjolnir, parts);
         } else if (parts[1] === 'make' && parts[2] === 'admin' && parts.length > 3) {
             return await execMakeRoomAdminCommand(roomId, event, mjolnir, parts);
         } else {
@@ -142,7 +139,6 @@ export async function handleCommand(roomId: string, event: { content: { body: st
                 "!mjolnir redact <user ID> [room alias/ID] [limit]                   - Redacts messages by the sender in the target room (or all rooms), up to a maximum number of events in the backlog (default 1000)\n" +
                 "!mjolnir redact <event permalink>                                   - Redacts a message by permalink\n" +
                 "!mjolnir kick <glob> [room alias/ID] [reason]                       - Kicks a user or all of those matching a glob in a particular room or all protected rooms\n" +
-                "!mjolnir mass kick <regex> [room alias/ID] [reason]                 - Kicks users based on a regex in a particular room or all protected rooms\n" +
                 "!mjolnir rules                                                      - Lists the rules currently in use by Mjolnir\n" +
                 "!mjolnir rules matching <user|room|server>                          - Lists the rules in use that will match this entity e.g. `!rules matching @foo:example.com` will show all the user and server rules, including globs, that match this user\n" +
                 "!mjolnir sync                                                       - Force updates of all lists and re-apply rules\n" +
