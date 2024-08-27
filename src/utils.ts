@@ -98,7 +98,31 @@ export async function redactUserMessagesIn(client: MatrixSendClient, managementR
                 }
             });
         } catch (error) {
-            await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Caught an error while trying to redact messages for ${userIdOrGlob} in ${targetRoomId}: ${error}`, targetRoomId);
+            let message = error.errorMessage || error.message || (error.body ? error.body.error : '<no message>');
+            if (message == "ESOCKETTIMEDOUT") {
+                // retry until no timedout
+                do {
+                    try {
+                        await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Retrying to redact messages for ${userIdOrGlob} in ${targetRoomId} due to a timeout while fetching or redacting messages`, targetRoomId);
+                        await getMessagesByUserIn(client, userIdOrGlob, targetRoomId, limit, async (eventsToRedact) => {
+                            for (const victimEvent of eventsToRedact) {
+                                await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Redacting ${victimEvent['event_id']} in ${targetRoomId}`, targetRoomId);
+                                if (!noop) {
+                                    await client.redactEvent(targetRoomId, victimEvent['event_id']);
+                                } else {
+                                    await managementRoom.logMessage(LogLevel.WARN, "utils#redactUserMessagesIn", `Retried to redact ${victimEvent['event_id']} in ${targetRoomId} but Mjolnir is running in no-op mode`, targetRoomId);
+                                }
+                            }
+                        });
+                        message = undefined;
+                    } catch (error) {
+                        message = error.errorMessage || error.message || (error.body ? error.body.error : '<no message>');
+                        await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Caught an error while re-trying to redact messages for ${userIdOrGlob} in ${targetRoomId}: ${error}`, targetRoomId);
+                    }
+                } while (message == "ESOCKETTIMEDOUT");
+            } else {
+                await managementRoom.logMessage(LogLevel.DEBUG, "utils#redactUserMessagesIn", `Caught an error while trying to redact messages for ${userIdOrGlob} in ${targetRoomId}: ${error}`, targetRoomId);
+            }
         }
     }
 }
